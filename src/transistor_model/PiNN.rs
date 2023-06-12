@@ -84,12 +84,7 @@ impl PiNN_net {
             VG_NEURON_NUM,
             Default::default(),
         );
-        let vd2vg_layer1 = nn::linear(
-            vs / "vd2vg_layer1",
-            1,
-            1,
-            Default::default(),
-        );
+        let vd2vg_layer1 = nn::linear(vs / "vd2vg_layer1", 1, 1, Default::default());
 
         PiNN_net {
             vd_subnet,
@@ -114,27 +109,34 @@ impl Module for PiNN_net {
 }
 
 pub fn run() -> Result<()> {
-    let dataset = loader::read_csv("data/integral_train.csv".to_string()).unwrap();
+    let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
     let x = Tensor::stack(
         &[
             Tensor::from_slice(dataset.VDS.as_slice()),
             Tensor::from_slice(dataset.VGS.as_slice()),
         ],
         1,
-    ).to_kind(Kind::Float);
+    )
+    .to_kind(Kind::Float);
     let y = Tensor::from_slice(dataset.IDS.as_slice()).to_kind(Kind::Float);
     let vs = nn::VarStore::new(Device::Cpu);
     let net = PiNN_net::new(&vs.root());
     let mut opt = nn::Adam::default().build(&vs, 1e-3)?;
     let mut losses = Vec::<Tensor>::new();
     for epoch in 1..=10000 {
-        let loss = net.forward(&x).mse_loss(&y, tch::Reduction::Mean);
+        let loss = (net.forward(&x) - &y)
+            .pow_tensor_scalar(2)
+            .mean(Kind::Float);
         opt.backward_step(&loss);
         losses.push(loss);
         println!("epoch {}", epoch);
     }
 
-    println!("initial loss: {:?} \n last loss: {:?}", losses.first(), losses.last());
+    println!(
+        "initial loss: {:?} \n last loss: {:?}",
+        losses.first(),
+        losses.last()
+    );
     Ok(())
 }
 
@@ -150,5 +152,5 @@ fn tensor_concat_test() {
         1,
     );
 
-    println!("{:?}", t.view([2, 292]));
+    println!("{:?}", t);
 }

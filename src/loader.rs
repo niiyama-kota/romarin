@@ -16,19 +16,19 @@ pub trait DataSet<T> {
 
 #[derive(Debug, Deserialize)]
 struct IV_measurement {
-    VGS: f64,
-    IDS: f64,
-    VDS: f64,
+    VGS: f32,
+    IDS: f32,
+    VDS: f32,
 }
 
 #[derive(Debug)]
 pub struct IV_measurements {
-    pub VGS: Vec<f64>,
-    pub IDS: Vec<f64>,
-    pub VDS: Vec<f64>,
+    pub VGS: Vec<f32>,
+    pub IDS: Vec<f32>,
+    pub VDS: Vec<f32>,
 }
 
-impl DataSet<f64> for IV_measurement {
+impl DataSet<f32> for IV_measurement {
     fn into_tensor(self: &Self) -> Tensor {
         Tensor::cat(
             &[
@@ -42,9 +42,9 @@ impl DataSet<f64> for IV_measurement {
 }
 
 pub fn read_csv(file_path: String) -> Result<IV_measurements, Box<dyn Error>> {
-    let mut vgs = Vec::<f64>::new();
-    let mut ids = Vec::<f64>::new();
-    let mut vds = Vec::<f64>::new();
+    let mut vgs = Vec::<f32>::new();
+    let mut ids = Vec::<f32>::new();
+    let mut vds = Vec::<f32>::new();
 
     let csv_text = fs::read_to_string(file_path)?;
     let mut rdr = csv::Reader::from_reader(csv_text.as_bytes());
@@ -55,11 +55,17 @@ pub fn read_csv(file_path: String) -> Result<IV_measurements, Box<dyn Error>> {
         ids.push(record.IDS);
     }
 
-    Ok(IV_measurements { VGS: vgs, IDS: ids, VDS: vds })
+    Ok(IV_measurements {
+        VGS: vgs,
+        IDS: ids,
+        VDS: vds,
+    })
 }
 
 #[test]
 fn test() {
-    let iv_measurement = read_csv("./data/integral.csv".to_string()).unwrap();
-    println!("{:?}", iv_measurement)
+    let iv_measurement = read_csv("./data/25_train.csv".to_string()).unwrap();
+    println!("{:?}", iv_measurement);
+
+    Tensor::from_slice(iv_measurement.IDS.as_slice()).print();
 }

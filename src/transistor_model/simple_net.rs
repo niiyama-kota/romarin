@@ -1,41 +1,53 @@
 use anyhow::Result;
-use tch::{nn, nn::Module, nn::OptimizerConfig, Device};
+use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Tensor, Kind};
 
-const IMAGE_DIM: i64 = 784;
-const HIDDEN_NODES: i64 = 128;
-const LABELS: i64 = 10;
+use crate::{loader, transistor_model::simple_net};
 
-fn net(vs: &nn::Path) -> impl Module {
+const NEURON_NUM: i64 = 500;
+
+fn new(vs: &nn::Path) -> impl Module {
     nn::seq()
         .add(nn::linear(
-            vs / "layer1",
-            IMAGE_DIM,
-            HIDDEN_NODES,
+            vs / "input layer",
+            2,
+            NEURON_NUM,
             Default::default(),
         ))
         .add_fn(|xs| xs.relu())
-        .add(nn::linear(vs, HIDDEN_NODES, LABELS, Default::default()))
+        .add(nn::linear(
+            vs / "layer1",
+            NEURON_NUM,
+            NEURON_NUM,
+            Default::default(),
+        ))
+        .add_fn(|xs| xs.relu())
+        .add(nn::linear(vs / "output layer", NEURON_NUM, 1, Default::default()))
 }
 
 pub fn run() -> Result<()> {
-    let m = tch::vision::mnist::load_dir("data")?;
+    let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
+    let x = Tensor::stack(
+        &[
+            Tensor::from_slice(dataset.VDS.as_slice()),
+            Tensor::from_slice(dataset.VGS.as_slice()),
+        ],
+        1,
+    ).to_kind(Kind::Float);
+    let y = Tensor::from_slice(dataset.IDS.as_slice()).to_kind(Kind::Float);
     let vs = nn::VarStore::new(Device::Cpu);
-    let net = net(&vs.root());
-    let mut opt = nn::AdamW::default().build(&vs, 1e-3)?;
-    for epoch in 1..200 {
-        let loss = net
-            .forward(&m.train_images)
-            .cross_entropy_for_logits(&m.train_labels);
-        opt.backward_step(&loss);
-        let test_accuracy = net
-            .forward(&m.test_images)
-            .accuracy_for_logits(&m.test_labels);
-        println!(
-            "epoch: {:4} train loss: {:8.5} test acc: {:5.2}%",
-            epoch,
-            &loss.double_value(&[0]),
-            100. * &test_accuracy.double_value(&[0]),
-        );
+    let net = simple_net::new(&vs.root());
+    let mut opt = nn::Sgd::default().build(&vs, 1e-2)?;
+    let mut losses = Vec::<Tensor>::new();
+    for epoch in 1..=10 {
+        opt.zero_grad();
+        let loss = (net.forward(&x) - &y).pow_tensor_scalar(2).mean(Kind::Float);
+        loss.backward();
+        opt.step();
+        losses.push(loss);
+        println!("epoch {}", epoch);
     }
+
+    println!("initial loss: {:?} \n last loss: {:?}", losses.first(), losses.last());
+
     Ok(())
 }
