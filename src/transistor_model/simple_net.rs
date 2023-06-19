@@ -1,5 +1,5 @@
 use anyhow::Result;
-use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Tensor, Kind};
+use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Kind, Tensor};
 
 use crate::{loader, transistor_model::simple_net};
 
@@ -21,33 +21,54 @@ fn new(vs: &nn::Path) -> impl Module {
             Default::default(),
         ))
         .add_fn(|xs| xs.relu())
-        .add(nn::linear(vs / "output layer", NEURON_NUM, 1, Default::default()))
+        .add(nn::linear(
+            vs / "output layer",
+            NEURON_NUM,
+            1,
+            Default::default(),
+        ))
 }
 
 pub fn run() -> Result<()> {
-    let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
+    let mut dataset = loader::read_csv("data/integral_train.csv".to_string()).unwrap();
+    dataset.min_max_scaling();
     let x = Tensor::stack(
         &[
             Tensor::from_slice(dataset.VDS.as_slice()),
             Tensor::from_slice(dataset.VGS.as_slice()),
         ],
         1,
-    ).to_kind(Kind::Float);
-    let y = Tensor::from_slice(dataset.IDS.as_slice()).to_kind(Kind::Float);
+    )
+    .to_kind(Kind::Float);
+    let y = Tensor::from_slice(dataset.IDS.as_slice())
+        .to_kind(Kind::Float);
     let vs = nn::VarStore::new(Device::Cpu);
     let net = simple_net::new(&vs.root());
-    let mut opt = nn::Sgd::default().build(&vs, 1e-2)?;
+    let mut opt = nn::RmsProp::default().build(&vs, 1e-3)?;
     let mut losses = Vec::<Tensor>::new();
-    for epoch in 1..=10 {
+    for epoch in 1..=100 {
         opt.zero_grad();
-        let loss = (net.forward(&x) - &y).pow_tensor_scalar(2).mean(Kind::Float);
+        let loss = (net.forward(&x) - &y)
+            .pow_tensor_scalar(2)
+            .mean(Kind::Float);
         loss.backward();
+        loss.print();
         opt.step();
         losses.push(loss);
         println!("epoch {}", epoch);
     }
 
-    println!("initial loss: {:?} \n last loss: {:?}", losses.first(), losses.last());
+    println!(
+        "initial loss: {:?} \n last loss: {:?}",
+        losses.first(),
+        losses.last()
+    );
 
     Ok(())
+}
+
+#[test]
+fn test_simple_net() {
+    use crate::transistor_model::simple_net;
+    let _ = simple_net::run();
 }
