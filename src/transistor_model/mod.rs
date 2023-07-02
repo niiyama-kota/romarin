@@ -1,2 +1,2 @@
 pub mod PiNN;
-pub mod simple_net;
+pub mod SimpleNet;

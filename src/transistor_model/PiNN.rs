@@ -113,7 +113,7 @@ impl Module for PiNN {
 }
 
 pub fn run() -> Result<()> {
-    let mut dataset = loader::read_csv("data/integral_train.csv".to_string()).unwrap();
+    let mut dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
     dataset.min_max_scaling();
     let x = Tensor::stack(
         &[
@@ -126,7 +126,7 @@ pub fn run() -> Result<()> {
     let y = Tensor::from_slice(dataset.IDS.as_slice())
     .to_kind(Kind::Float);
 
-    let mut test_dataset = loader::read_csv("data/integral.csv".to_string()).unwrap();
+    let mut test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
     test_dataset.min_max_scaling();
     let x_test = Tensor::stack(
         &[
@@ -140,7 +140,7 @@ pub fn run() -> Result<()> {
 
     let vs = nn::VarStore::new(Device::Cpu);
     let net = PiNN::new(&vs.root());
-    let mut opt = nn::RmsProp::default().build(&vs, 1e-3)?;
+    let mut opt = nn::AdamW::default().build(&vs, 1e-3)?;
     let mut losses = Vec::<Tensor>::new();
     for epoch in 1..=10000 {
         let loss = (net.forward(&x) - &y)

@@ -1,4 +1,4 @@
-use romarin::transistor_model::{simple_net, PiNN};
+use romarin::transistor_model::{SimpleNet, PiNN};
 use tch::Tensor;
 
 fn main() {
@@ -6,5 +6,5 @@ fn main() {
     // let t = t.view([2, 3, 1]);
     // t.tanh().print();
 
-    let _ = simple_net::run();
+    let _ = SimpleNet::run();
 }
