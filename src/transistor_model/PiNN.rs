@@ -124,7 +124,8 @@ pub fn run() -> Result<()> {
     )
     .to_kind(Kind::Float);
     let y = Tensor::from_slice(dataset.IDS.as_slice())
-    .to_kind(Kind::Float);
+        .to_kind(Kind::Float)
+        .reshape([-1, 1]);
 
     let mut test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
     test_dataset.min_max_scaling();
@@ -136,16 +137,16 @@ pub fn run() -> Result<()> {
         1,
     )
     .to_kind(Kind::Float);
-    let y_test = Tensor::from_slice(test_dataset.IDS.as_slice()).to_kind(Kind::Float);
+    let y_test = Tensor::from_slice(test_dataset.IDS.as_slice())
+        .to_kind(Kind::Float)
+        .reshape([-1, 1]);
 
     let vs = nn::VarStore::new(Device::Cpu);
     let net = PiNN::new(&vs.root());
     let mut opt = nn::AdamW::default().build(&vs, 1e-3)?;
     let mut losses = Vec::<Tensor>::new();
     for epoch in 1..=10000 {
-        let loss = (net.forward(&x) - &y)
-            .square()
-            .mean(Kind::Float);
+        let loss = (net.forward(&x) - &y).square().mean(Kind::Float);
         loss.print();
         opt.backward_step(&loss);
         losses.push(loss);
@@ -160,7 +161,23 @@ pub fn run() -> Result<()> {
 
     let rmse = net.rmse(&x_test, &y_test);
     println!("test rmse: {:?}", rmse);
-    
+
+    let y_pred = net.forward(&x);
+    let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
+    let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
+    let mut ids_test: Vec<f32> = vec![0.0; y_test.numel()];
+    let mut ids_pred: Vec<f32> = vec![0.0; y_pred.numel()];
+    x_test
+        .transpose(0, 1)
+        .get(0)
+        .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(0).numel());
+    x_test
+        .transpose(0, 1)
+        .get(1)
+        .copy_data(&mut vds_test, x_test.transpose(0, 1).get(1).numel());
+    y_test.copy_data(&mut ids_test, y_test.numel());
+    y_pred.copy_data(&mut ids_pred, y_pred.numel());
+
     Ok(())
 }
 
@@ -169,4 +186,3 @@ fn test_pinn() {
     use crate::transistor_model::PiNN;
     let _ = PiNN::run();
 }
-
