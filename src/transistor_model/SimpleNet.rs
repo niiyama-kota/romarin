@@ -107,18 +107,18 @@ pub fn run() -> Result<()> {
     println!("test rmse: {:?}", rmse);
     let y_pred = net.forward_t(&x_test, false);
 
-    let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
-    let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
+    let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
+    let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
     let mut ids_test: Vec<f32> = vec![0.0; y_test.numel()];
     let mut ids_pred: Vec<f32> = vec![0.0; y_pred.numel()];
     x_test
         .transpose(0, 1)
         .get(0)
-        .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(0).numel());
+        .copy_data(&mut vds_test, x_test.transpose(0, 1).get(0).numel());
     x_test
         .transpose(0, 1)
         .get(1)
-        .copy_data(&mut vds_test, x_test.transpose(0, 1).get(1).numel());
+        .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(1).numel());
     y_test.copy_data(&mut ids_test, y_test.numel());
     y_pred.copy_data(&mut ids_pred, y_pred.numel());
 
@@ -127,33 +127,33 @@ pub fn run() -> Result<()> {
     let mut w = BufWriter::new(File::create(data_output_path.join("test_data.csv"))?);
 
     writeln!(w, "VGS,VDS,IDS,IDS_PRED")?;
-    for (vgs, (vds, (ids_t, ids_p))) in vgs_test.into_iter().zip(
-        vds_test
-            .into_iter()
-            .zip(ids_test.into_iter().zip(ids_pred.into_iter())),
-    ) {
+    for (&vgs, (&vds, (&ids_t, &ids_p))) in vgs_test
+        .iter()
+        .zip(vds_test.iter().zip(ids_test.iter().zip(ids_pred.iter())))
+    {
         writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p)?;
     }
 
     let root = BitMapBackend::new("plots/3d_scatter.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let mut chart = ChartBuilder::on(&root)
-        .margin(20)
-        .caption("Test Samples Scatter", ("sans-serif", 40))
-        .build_cartesian_3d(0.0..1.0, 0.0..1.0, 0.0..1.0)
+        .x_label_area_size(40)
+        .y_label_area_size(40)
+        .build_cartesian_2d(0f32..1.1f32, 0f32..1.1f32)?;
+    chart
+        .configure_mesh()
+        .x_desc("Vds")
+        .y_desc("Ids")
+        .axis_desc_style(("sans-serif", 15))
+        .draw()?;
+    chart
+        .draw_series(
+            vds_test
+                .iter()
+                .zip(ids_test.iter())
+                .map(|(vds, ids)| Circle::new((*vds, *ids), 2, RED.filled())),
+        )
         .unwrap();
-    chart.configure_axes().draw().unwrap();
-    // chart
-    //     .draw_series(PointSeries::new(
-    //         vds_test
-    //             .iter()
-    //             .zip(vgs_test.iter())
-    //             .zip(ids_test.iter())
-    //             .map(|((vds, vgs), ids)| (*vds, *vgs, *ids)),
-    //         2,
-    //         &RED,
-    //     ))
-    //     .unwrap();
 
     Ok(())
 }

@@ -48,8 +48,8 @@ impl DataSet<f32> for IV_measurement {
     fn into_tensor(self: &Self) -> Tensor {
         Tensor::cat(
             &[
-                std::convert::Into::<Tensor>::into(self.VDS),
                 std::convert::Into::<Tensor>::into(self.VGS),
+                std::convert::Into::<Tensor>::into(self.VDS),
                 self.IDS.into(),
             ],
             0,

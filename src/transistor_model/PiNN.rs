@@ -163,18 +163,18 @@ pub fn run() -> Result<()> {
     println!("test rmse: {:?}", rmse);
 
     let y_pred = net.forward(&x);
-    let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
-    let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
+    let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
+    let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
     let mut ids_test: Vec<f32> = vec![0.0; y_test.numel()];
     let mut ids_pred: Vec<f32> = vec![0.0; y_pred.numel()];
     x_test
         .transpose(0, 1)
         .get(0)
-        .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(0).numel());
+        .copy_data(&mut vds_test, x_test.transpose(0, 1).get(0).numel());
     x_test
         .transpose(0, 1)
         .get(1)
-        .copy_data(&mut vds_test, x_test.transpose(0, 1).get(1).numel());
+        .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(1).numel());
     y_test.copy_data(&mut ids_test, y_test.numel());
     y_pred.copy_data(&mut ids_pred, y_pred.numel());
 
