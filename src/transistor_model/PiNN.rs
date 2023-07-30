@@ -1,11 +1,6 @@
 use crate::loader;
 use anyhow::Result;
-use tch::{
-    nn,
-    nn::OptimizerConfig,
-    nn::{Func, Module},
-    Device, Kind, Tensor,
-};
+use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Kind, Tensor};
 
 const VD_NEURON_NUM: i64 = 2;
 const VG_NEURON_NUM: i64 = 3;
