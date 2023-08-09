@@ -4,14 +4,16 @@ pub fn to_verilog(mut program: Ast) {
     // let tokens: Vec<Token> = tokenize(input);
     // let ast = parse(&tokens);
 
-    let identifier = "MLDeviceModel";
-    println!("module {}(d, g, s);", identifier);
+    let identifier = "MLDeviceBehavior";
+    println!("function real {};", identifier);
+    println!("  input d, g, s;");
     println!("  electrical d, g, s;");
     println!("  real Id, Vgs, Vds;");
-    println!("  alalog begin");
+    println!("  begin");
     println!("      Vgs = V(g, s);");
     println!("      Vds = V(d, s);");
     //codegen(program, tab = "\t\t");
+    println!("      MLDeviceBehavior = Id;");
     println!("  end");
-    println!("endmodule");
+    println!("endfunction");
 }

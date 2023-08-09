@@ -40,6 +40,29 @@ impl SimpleNet {
             .mean(Kind::Float)
             .sqrt()
     }
+
+    pub fn export_params(&self) -> Result<()> {
+        let data_output_path = Path::new("./data");
+        create_dir_all(&data_output_path)?;
+        let mut w = BufWriter::new(File::create(data_output_path.join("model_parameter.rom"))?);
+
+        let l1 = &self.input_layer;
+        let ws = &l1.ws;
+        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
+        ws.copy_data(&mut weights, ws.numel());
+        writeln!(w, "layer1(weight):")?;
+        write!(w, "\t")?;
+        for (i, weight) in weights.into_iter().enumerate() {
+            write!(w, "{weight},")?;
+            if i % 2 == 0 {
+                write!(w, "")?;
+            } else {
+                write!(w, "\n")?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl ModuleT for SimpleNet {
@@ -85,7 +108,7 @@ pub fn run() -> Result<()> {
     let net = SimpleNet::new(&vs.root());
     let mut opt = nn::AdamW::default().build(&vs, 1e-5)?;
     let mut losses = Vec::<f64>::new();
-    for epoch in 1..=5000 {
+    for epoch in 1..=10000 {
         opt.zero_grad();
         // let loss = (net.forward_t(&x, true) - &y)
         //     .pow_tensor_scalar(2)
@@ -134,6 +157,8 @@ pub fn run() -> Result<()> {
         writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p)?;
     }
 
+    net.export_params()?;
+
     let root = BitMapBackend::new("plots/3d_scatter.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE).unwrap();
     let mut chart = ChartBuilder::on(&root)
@@ -152,6 +177,14 @@ pub fn run() -> Result<()> {
                 .iter()
                 .zip(ids_test.iter())
                 .map(|(vds, ids)| Circle::new((*vds, *ids), 2, RED.filled())),
+        )
+        .unwrap();
+    chart
+        .draw_series(
+            vds_test
+                .iter()
+                .zip(ids_pred.iter())
+                .map(|(vds, ids)| Circle::new((*vds, *ids), 2, BLUE.filled())),
         )
         .unwrap();
 

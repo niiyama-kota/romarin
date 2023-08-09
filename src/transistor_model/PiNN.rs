@@ -1,6 +1,15 @@
 use crate::loader;
 use anyhow::Result;
-use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Kind, Tensor};
+use plotters::prelude::*;
+use std::fs::{create_dir_all, File};
+use std::io::{BufWriter, Write};
+use std::path::Path;
+use tch::{
+    nn::Module,
+    nn::OptimizerConfig,
+    nn::{self, LinearConfig},
+    Device, Kind, Tensor,
+};
 
 const VD_NEURON_NUM: i64 = 2;
 const VG_NEURON_NUM: i64 = 3;
@@ -45,13 +54,21 @@ impl Vg_subnet {
             vs / "vg_subnet_layer0",
             1,
             VG_NEURON_NUM,
-            Default::default(),
+            LinearConfig {
+                ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+                bs_init: None,
+                bias: false,
+            },
         );
         let vg_sub_layer1 = nn::linear(
             vs / "vg_subnet_layer1",
             VG_NEURON_NUM,
             1,
-            Default::default(),
+            LinearConfig {
+                ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+                bs_init: None,
+                bias: false,
+            },
         );
 
         Vg_subnet {
@@ -77,7 +94,11 @@ impl PiNN {
             vs / "vd2vg_layer0",
             VD_NEURON_NUM,
             VG_NEURON_NUM,
-            Default::default(),
+            LinearConfig {
+                ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+                bs_init: None,
+                bias: false,
+            },
         );
         let vd2vg_layer1 = nn::linear(vs / "vd2vg_layer1", 1, 1, Default::default());
 
@@ -140,7 +161,7 @@ pub fn run() -> Result<()> {
     let net = PiNN::new(&vs.root());
     let mut opt = nn::AdamW::default().build(&vs, 1e-3)?;
     let mut losses = Vec::<Tensor>::new();
-    for epoch in 1..=10000 {
+    for epoch in 1..=50000 {
         let loss = (net.forward(&x) - &y).square().mean(Kind::Float);
         loss.print();
         opt.backward_step(&loss);
@@ -157,7 +178,8 @@ pub fn run() -> Result<()> {
     let rmse = net.rmse(&x_test, &y_test);
     println!("test rmse: {:?}", rmse);
 
-    let y_pred = net.forward(&x);
+    let y_pred = net.forward(&x_test);
+
     let mut vds_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(0).numel()];
     let mut vgs_test: Vec<f32> = vec![0.0; x_test.transpose(0, 1).get(1).numel()];
     let mut ids_test: Vec<f32> = vec![0.0; y_test.numel()];
@@ -172,6 +194,47 @@ pub fn run() -> Result<()> {
         .copy_data(&mut vgs_test, x_test.transpose(0, 1).get(1).numel());
     y_test.copy_data(&mut ids_test, y_test.numel());
     y_pred.copy_data(&mut ids_pred, y_pred.numel());
+
+    let data_output_path = Path::new("./data");
+    create_dir_all(&data_output_path)?;
+    let mut w = BufWriter::new(File::create(data_output_path.join("test_data.csv"))?);
+
+    writeln!(w, "VGS,VDS,IDS,IDS_PRED")?;
+    for (&vgs, (&vds, (&ids_t, &ids_p))) in vgs_test
+        .iter()
+        .zip(vds_test.iter().zip(ids_test.iter().zip(ids_pred.iter())))
+    {
+        writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p)?;
+    }
+
+    let root = BitMapBackend::new("plots/3d_scatter_PiNN.png", (640, 480)).into_drawing_area();
+    root.fill(&WHITE).unwrap();
+    let mut chart = ChartBuilder::on(&root)
+        .x_label_area_size(40)
+        .y_label_area_size(40)
+        .build_cartesian_2d(0f32..1.1f32, 0f32..1.1f32)?;
+    chart
+        .configure_mesh()
+        .x_desc("Vds")
+        .y_desc("Ids")
+        .axis_desc_style(("sans-serif", 15))
+        .draw()?;
+    chart
+        .draw_series(
+            vds_test
+                .iter()
+                .zip(ids_test.iter())
+                .map(|(vds, ids)| Circle::new((*vds, *ids), 2, RED.filled())),
+        )
+        .unwrap();
+    chart
+        .draw_series(
+            vds_test
+                .iter()
+                .zip(ids_pred.iter())
+                .map(|(vds, ids)| Circle::new((*vds, *ids), 2, BLUE.filled())),
+        )
+        .unwrap();
 
     Ok(())
 }
