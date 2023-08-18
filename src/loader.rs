@@ -1,14 +1,9 @@
 use anyhow::Result;
 use csv;
 use serde::Deserialize;
-use std::{error::Error, cmp::min};
+use std::error::Error;
 use std::fs;
-use tch::{
-    nn,
-    nn::OptimizerConfig,
-    nn::{Func, Module},
-    Device, Tensor,
-};
+use tch::Tensor;
 
 pub trait DataSet<T> {
     fn into_tensor(self: &Self) -> Tensor;
@@ -32,15 +27,27 @@ impl IV_measurements {
     pub fn min_max_scaling(&mut self) {
         let minimum = self.IDS.iter().fold(f32::MAX, |m, x| f32::min(m, *x));
         let maximum = self.IDS.iter().fold(f32::MIN, |m, x| f32::max(m, *x));
-        self.IDS = self.IDS.iter().map(|x| (*x-minimum) / (maximum - minimum)).collect();
+        self.IDS = self
+            .IDS
+            .iter()
+            .map(|x| (*x - minimum) / (maximum - minimum))
+            .collect();
 
         let minimum = self.VDS.iter().fold(f32::MAX, |m, x| f32::min(m, *x));
         let maximum = self.VDS.iter().fold(f32::MIN, |m, x| f32::max(m, *x));
-        self.VDS = self.VDS.iter().map(|x| (*x-minimum) / (maximum - minimum)).collect();
+        self.VDS = self
+            .VDS
+            .iter()
+            .map(|x| (*x - minimum) / (maximum - minimum))
+            .collect();
 
         let minimum = self.VGS.iter().fold(f32::MAX, |m, x| f32::min(m, *x));
         let maximum = self.VGS.iter().fold(f32::MIN, |m, x| f32::max(m, *x));
-        self.VGS = self.VGS.iter().map(|x| (*x-minimum) / (maximum - minimum)).collect();
+        self.VGS = self
+            .VGS
+            .iter()
+            .map(|x| (*x - minimum) / (maximum - minimum))
+            .collect();
     }
 }
 

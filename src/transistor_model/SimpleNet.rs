@@ -44,22 +44,56 @@ impl SimpleNet {
     pub fn export_params(&self) -> Result<()> {
         let data_output_path = Path::new("./data");
         create_dir_all(&data_output_path)?;
-        let mut w = BufWriter::new(File::create(data_output_path.join("model_parameter.rom"))?);
+        let mut w = BufWriter::new(File::create(data_output_path.join("model_parameters.va"))?);
+
+        writeln!(w, "`define activation(x)\\")?;
+        writeln!(w, "\tif(x < 0)\\")?;
+        writeln!(w, "\t\tx = 0;")?;
 
         let l1 = &self.input_layer;
         let ws = &l1.ws;
         let mut weights: Vec<f32> = vec![0.0; ws.numel()];
         ws.copy_data(&mut weights, ws.numel());
-        writeln!(w, "layer1(weight):")?;
-        write!(w, "\t")?;
+        writeln!(w, "`define L1 {{\\")?;
         for (i, weight) in weights.into_iter().enumerate() {
             write!(w, "{weight},")?;
-            if i % 2 == 0 {
+            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
                 write!(w, "")?;
             } else {
-                write!(w, "\n")?;
+                writeln!(w, "\\")?;
             }
         }
+        writeln!(w, "}}")?;
+
+        let l2 = &self.hidden_layer;
+        let ws = &l2.ws;
+        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
+        ws.copy_data(&mut weights, ws.numel());
+        writeln!(w, "`define L2 {{\\")?;
+        for (i, weight) in weights.into_iter().enumerate() {
+            write!(w, "{weight},")?;
+            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
+                write!(w, "")?;
+            } else {
+                writeln!(w, "\\")?;
+            }
+        }
+        writeln!(w, "}}")?;
+
+        let l3 = &self.output_layer;
+        let ws = &l3.ws;
+        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
+        ws.copy_data(&mut weights, ws.numel());
+        writeln!(w, "`define L3 {{\\")?;
+        for (i, weight) in weights.into_iter().enumerate() {
+            write!(w, "{weight},")?;
+            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
+                write!(w, "")?;
+            } else {
+                writeln!(w, "\\")?;
+            }
+        }
+        writeln!(w, "}}")?;
 
         Ok(())
     }
