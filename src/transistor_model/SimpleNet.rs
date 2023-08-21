@@ -7,12 +7,13 @@ use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
 use crate::loader;
+use crate::transpiler::utils::{self, declare_activation, declare_tensor};
 
 const NEURON_NUM: i64 = 500;
+const EPOCH: i64 = 50000;
 
 #[derive(Debug)]
 struct SimpleNet {
-    // layers: nn::SequentialT,
     input_layer: nn::Linear,
     hidden_layer: nn::Linear,
     output_layer: nn::Linear,
@@ -46,54 +47,53 @@ impl SimpleNet {
         create_dir_all(&data_output_path)?;
         let mut w = BufWriter::new(File::create(data_output_path.join("model_parameters.va"))?);
 
-        writeln!(w, "`define activation(x)\\")?;
-        writeln!(w, "\tif(x < 0)\\")?;
-        writeln!(w, "\t\tx = 0;")?;
+        let declare_relu = declare_activation(utils::Activations::ReLU);
+        // `define relu(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n\tend\n
+        writeln!(w, "{}", declare_relu)?;
 
         let l1 = &self.input_layer;
         let ws = &l1.ws;
-        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
-        ws.copy_data(&mut weights, ws.numel());
-        writeln!(w, "`define L1 {{\\")?;
-        for (i, weight) in weights.into_iter().enumerate() {
-            write!(w, "{weight},")?;
-            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
-                write!(w, "")?;
-            } else {
-                writeln!(w, "\\")?;
-            }
+        let declare_w1 = declare_tensor(ws, "W1", Some(2));
+        writeln!(w, "{}", declare_w1)?;
+        if let Some(bs) = &l1.bs {
+            let declare_b1 = declare_tensor(bs, "B1", Some(1));
+            writeln!(w, "{}", declare_b1)?;
         }
-        writeln!(w, "}}")?;
 
         let l2 = &self.hidden_layer;
         let ws = &l2.ws;
-        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
-        ws.copy_data(&mut weights, ws.numel());
-        writeln!(w, "`define L2 {{\\")?;
-        for (i, weight) in weights.into_iter().enumerate() {
-            write!(w, "{weight},")?;
-            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
-                write!(w, "")?;
-            } else {
-                writeln!(w, "\\")?;
-            }
+        let declare_w2 = declare_tensor(ws, "W2", Some(NEURON_NUM as usize));
+        writeln!(w, "{}", declare_w2)?;
+        if let Some(bs) = &l2.bs {
+            let declare_b2 = declare_tensor(bs, "B2", Some(1));
+            writeln!(w, "{}", declare_b2)?;
         }
-        writeln!(w, "}}")?;
 
         let l3 = &self.output_layer;
         let ws = &l3.ws;
-        let mut weights: Vec<f32> = vec![0.0; ws.numel()];
-        ws.copy_data(&mut weights, ws.numel());
-        writeln!(w, "`define L3 {{\\")?;
-        for (i, weight) in weights.into_iter().enumerate() {
-            write!(w, "{weight},")?;
-            if (i + 1) % (ws.size2().unwrap().1 as usize) != 0 {
-                write!(w, "")?;
-            } else {
-                writeln!(w, "\\")?;
-            }
+        let declare_w3 = declare_tensor(ws, "W3", Some(NEURON_NUM as usize));
+        writeln!(w, "{}", declare_w3)?;
+        if let Some(bs) = &l3.bs {
+            let declare_b3 = declare_tensor(bs, "B3", Some(1));
+            writeln!(w, "{}", declare_b3)?;
         }
-        writeln!(w, "}}")?;
+
+        let mut ml_model_func = "function real ml_model_func;\n".to_owned();
+        ml_model_func += "input Vgs, Vds;\n";
+        ml_model_func += "real Vgs, Vds;\n";
+        ml_model_func += "begin\n";
+        ml_model_func += "\treal X1[0:500];\n";
+        ml_model_func += "\t`MATMUL(`W1, {Vds, Vgs}, X1, 500, 1, 2);\n";
+        ml_model_func += "\t`MATADD(X1, `B1, 500, 1);\n";
+        ml_model_func += "\treal X2[0:500];\n";
+        ml_model_func += "\t`MATMUL(`W2, X1, X2, 500, 1, 500);\n";
+        ml_model_func += "\t`MATADD(X2, `B2, 500, 1);\n";
+        ml_model_func += "\treal X3[0:1];\n";
+        ml_model_func += "\t`MATMUL(`W3, X2, X3, 1, 1, 500);\n";
+        ml_model_func += "\t`MATADD(X3, `B3, 1, 1);\n";
+        ml_model_func += "\tml_model_func = X3[0];\n";
+        ml_model_func += "end\n";
+        ml_model_func += "endfunction\n";
 
         Ok(())
     }
@@ -142,11 +142,8 @@ pub fn run() -> Result<()> {
     let net = SimpleNet::new(&vs.root());
     let mut opt = nn::AdamW::default().build(&vs, 1e-5)?;
     let mut losses = Vec::<f64>::new();
-    for epoch in 1..=10000 {
+    for epoch in 1..=EPOCH {
         opt.zero_grad();
-        // let loss = (net.forward_t(&x, true) - &y)
-        //     .pow_tensor_scalar(2)
-        //     .mean(Kind::Float);
         let loss = net.forward_t(&x, true).mse_loss(&y, tch::Reduction::Mean);
         loss.print();
         opt.backward_step(&loss);
