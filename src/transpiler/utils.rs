@@ -8,7 +8,11 @@ pub enum Activations {
 
 pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -> String {
     let mut ret: String = "".to_owned();
-    ret += &format!("`define {} {{\\\n", alias);
+    ret += &format!(
+        "real {}[0:{}] = {{\\\n",
+        alias,
+        break_line_num.unwrap_or(1) - 1
+    );
     let mut raw_ts: Vec<f32> = vec![0.0; ts.numel()];
     ts.copy_data(&mut raw_ts, ts.numel());
     for (i, raw_t) in raw_ts.into_iter().enumerate() {
@@ -80,11 +84,11 @@ pub fn mosfet_template(content: &str) -> String {
 
     ret += "// define analog behavior\n";
     ret += "\tanalog begin\n";
-    ret += "\tVgs = V(b_gs);";
-    ret += "\tVds = V(b_ds);";
-    ret += "\tVgd = V(b_gd);";
+    ret += "\tVgs = V(b_gs);\n";
+    ret += "\tVds = V(b_ds);\n";
+    ret += "\tVgd = V(b_gd);\n";
     ret += content;
-    ret += "\tend // analog block";
+    ret += "\tend // analog block\n";
 
     ret += "endmodule // mosfet\n";
 
@@ -100,7 +104,14 @@ fn test_declare_tensor() {
         .to_kind(Kind::Float);
     let expected: String = "`define sample_tensor {\\\n1,2,3,\\\n4,5,6,\\\n}\n".to_owned();
 
-    assert_eq!(declare_tensor(&tensor, "sample_tensor", Some(tensor.size2().unwrap().1 as usize)), expected);
+    assert_eq!(
+        declare_tensor(
+            &tensor,
+            "sample_tensor",
+            Some(tensor.size2().unwrap().1 as usize)
+        ),
+        expected
+    );
 }
 
 #[test]
@@ -116,7 +127,7 @@ fn test_declare_activation() {
 
 #[test]
 fn test_declare_matrix_mul() {
-    let expected: String = "`ifndef MATMUL\\\n`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n\t\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] + A[i*C_dim2 + k]*B[k*C_dim2 + j];\\\n\t\t\tend\\\n\t\tend\\\n\tend\\\n".to_owned();
+    let expected: String = "`ifndef MATMUL\\\n`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n\t\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] + A[i*K + k]*B[k*C_dim2 + j];\\\n\t\t\tend\\\n\t\tend\\\n\tend\\\n".to_owned();
 
     assert_eq!(declare_matrix_mul(), expected);
 }

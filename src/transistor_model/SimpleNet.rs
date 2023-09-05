@@ -1,16 +1,17 @@
 use anyhow::Result;
 use plotters::prelude::*;
+use std::collections::HashMap;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
-use crate::loader;
-use crate::transpiler::utils::{self, declare_activation, declare_tensor};
+use crate::loader::{self, min_max_scaling, DataSet};
+use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template};
 
 const NEURON_NUM: i64 = 500;
-const EPOCH: i64 = 50000;
+const EPOCH: i64 = 10000;
 
 #[derive(Debug)]
 struct SimpleNet {
@@ -42,7 +43,11 @@ impl SimpleNet {
             .sqrt()
     }
 
-    pub fn export_params(&self) -> Result<()> {
+    pub fn export_params(
+        &self,
+        minimums: HashMap<String, f32>,
+        maximums: HashMap<String, f32>,
+    ) -> Result<()> {
         let data_output_path = Path::new("./data");
         create_dir_all(&data_output_path)?;
         let mut w = BufWriter::new(File::create(data_output_path.join("model_parameters.va"))?);
@@ -51,50 +56,65 @@ impl SimpleNet {
         // `define relu(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n\tend\n
         writeln!(w, "{}", declare_relu)?;
 
+        let mut content = "\t".to_owned();
+
         let l1 = &self.input_layer;
         let ws = &l1.ws;
         let declare_w1 = declare_tensor(ws, "W1", Some(2));
-        writeln!(w, "{}", declare_w1)?;
+        content += &declare_w1.replace("\n", "\n\t");
         if let Some(bs) = &l1.bs {
             let declare_b1 = declare_tensor(bs, "B1", Some(1));
-            writeln!(w, "{}", declare_b1)?;
+            content += &declare_b1.replace("\n", "\n\t");
         }
 
         let l2 = &self.hidden_layer;
         let ws = &l2.ws;
         let declare_w2 = declare_tensor(ws, "W2", Some(NEURON_NUM as usize));
-        writeln!(w, "{}", declare_w2)?;
+        content += &declare_w2.replace("\n", "\n\t");
         if let Some(bs) = &l2.bs {
             let declare_b2 = declare_tensor(bs, "B2", Some(1));
-            writeln!(w, "{}", declare_b2)?;
+            content += &declare_b2.replace("\n", "\n\t")
         }
 
         let l3 = &self.output_layer;
         let ws = &l3.ws;
         let declare_w3 = declare_tensor(ws, "W3", Some(NEURON_NUM as usize));
-        writeln!(w, "{}", declare_w3)?;
+        content += &declare_w3.replace("\n", "\n\t");
         if let Some(bs) = &l3.bs {
             let declare_b3 = declare_tensor(bs, "B3", Some(1));
-            writeln!(w, "{}", declare_b3)?;
+            content += &declare_b3.replace("\n", "\n\t");
         }
 
-        let mut ml_model_func = "function real ml_model_func;\n".to_owned();
-        ml_model_func += "input Vgs, Vds;\n";
-        ml_model_func += "real Vgs, Vds;\n";
-        ml_model_func += "begin\n";
-        ml_model_func += "\treal X1[0:500];\n";
-        ml_model_func += "\t`MATMUL(`W1, {Vds, Vgs}, X1, 500, 1, 2);\n";
-        ml_model_func += "\t`MATADD(X1, `B1, 500, 1);\n";
-        ml_model_func += "\treal X2[0:500];\n";
-        ml_model_func += "\t`MATMUL(`W2, X1, X2, 500, 1, 500);\n";
-        ml_model_func += "\t`MATADD(X2, `B2, 500, 1);\n";
-        ml_model_func += "\treal X3[0:1];\n";
-        ml_model_func += "\t`MATMUL(`W3, X2, X3, 1, 1, 500);\n";
-        ml_model_func += "\t`MATADD(X3, `B3, 1, 1);\n";
-        ml_model_func += "\tml_model_func = X3[0];\n";
-        ml_model_func += "end\n";
-        ml_model_func += "endfunction\n";
+        content += &format!("real X1[0:{}-1];\n", NEURON_NUM);
+        content += &format!(
+            "\treal inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}}",
+            minimums.get("Vds").unwrap(),
+            maximums.get("Vds").unwrap(),
+            minimums.get("Vds").unwrap(),
+            minimums.get("Vgs").unwrap(),
+            maximums.get("Vgs").unwrap(),
+            minimums.get("Vgs").unwrap(),
+        );
+        content += &format!("\t`MATMUL(W1, inputs, X1, {}, 1, 2);\n", NEURON_NUM);
+        content += &format!("\t`MATADD(X1, B1, {}, 1);\n", NEURON_NUM);
+        // content += &format!("\tAPPLY RELU FUNCTION!");
+        content += &format!("\treal X2[0:{}-1];\n", NEURON_NUM);
+        content += &format!(
+            "\t`MATMUL(W2, X1, X2, {}, 1, {});\n",
+            NEURON_NUM, NEURON_NUM
+        );
+        content += &format!("\t`MATADD(X2, B2, {}, 1);\n", NEURON_NUM);
+        content += "\treal X3[0:0];\n";
+        content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, {});\n", NEURON_NUM);
+        content += "\t`MATADD(X3, B3, 1, 1);\n";
+        content += &format!(
+            "\tIds <+ {} - X3[0] * ({} - {});\n",
+            maximums.get("Ids").unwrap(),
+            maximums.get("Ids").unwrap(),
+            minimums.get("Ids").unwrap()
+        );
 
+        writeln!(w, "{}", mosfet_template(&content))?;
         Ok(())
     }
 }
@@ -110,31 +130,31 @@ impl ModuleT for SimpleNet {
 }
 
 pub fn run() -> Result<()> {
-    let mut dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
-    dataset.min_max_scaling();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
+    let dataset = min_max_scaling(&dataset);
     let x = Tensor::stack(
         &[
-            Tensor::from_slice(dataset.VDS.as_slice()),
-            Tensor::from_slice(dataset.VGS.as_slice()),
+            Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
         ],
         1,
     )
     .to_kind(Kind::Float);
-    let y = Tensor::from_slice(dataset.IDS.as_slice())
+    let y = Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
 
-    let mut test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
-    test_dataset.min_max_scaling();
+    let test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
+    let test_dataset = min_max_scaling(&test_dataset);
     let x_test = Tensor::stack(
         &[
-            Tensor::from_slice(test_dataset.VDS.as_slice()),
-            Tensor::from_slice(test_dataset.VGS.as_slice()),
+            Tensor::from_slice(test_dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(test_dataset.get("Vgs").unwrap().as_slice()),
         ],
         1,
     )
     .to_kind(Kind::Float);
-    let y_test = Tensor::from_slice(test_dataset.IDS.as_slice())
+    let y_test = Tensor::from_slice(test_dataset.get("Ids").unwrap().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
 
@@ -188,7 +208,7 @@ pub fn run() -> Result<()> {
         writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p)?;
     }
 
-    net.export_params()?;
+    net.export_params(dataset.minimums, dataset.maximums)?;
 
     let root = BitMapBackend::new("plots/3d_scatter.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE).unwrap();

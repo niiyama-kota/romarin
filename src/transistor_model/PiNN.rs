@@ -1,4 +1,4 @@
-use crate::loader;
+use crate::loader::{self, min_max_scaling, DataSet};
 use anyhow::Result;
 use plotters::prelude::*;
 use std::fs::{create_dir_all, File};
@@ -129,31 +129,31 @@ impl Module for PiNN {
 }
 
 pub fn run() -> Result<()> {
-    let mut dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
-    dataset.min_max_scaling();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
+    let dataset = min_max_scaling(&dataset);
     let x = Tensor::stack(
         &[
-            Tensor::from_slice(dataset.VDS.as_slice()),
-            Tensor::from_slice(dataset.VGS.as_slice()),
+            Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
         ],
         1,
     )
     .to_kind(Kind::Float);
-    let y = Tensor::from_slice(dataset.IDS.as_slice())
+    let y = Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
 
-    let mut test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
-    test_dataset.min_max_scaling();
+    let test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
+    let test_dataset = min_max_scaling(&test_dataset);
     let x_test = Tensor::stack(
         &[
-            Tensor::from_slice(test_dataset.VDS.as_slice()),
-            Tensor::from_slice(test_dataset.VGS.as_slice()),
+            Tensor::from_slice(test_dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(test_dataset.get("Vgs").unwrap().as_slice()),
         ],
         1,
     )
     .to_kind(Kind::Float);
-    let y_test = Tensor::from_slice(test_dataset.IDS.as_slice())
+    let y_test = Tensor::from_slice(test_dataset.get("Ids").unwrap().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
 
