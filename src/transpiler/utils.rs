@@ -21,7 +21,7 @@ pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -
             ret += "\\\n";
         }
     }
-    ret += "}\n";
+    ret += "};\n";
 
     return ret;
 }

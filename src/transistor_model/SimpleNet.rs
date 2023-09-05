@@ -87,7 +87,7 @@ impl SimpleNet {
 
         content += &format!("real X1[0:{}-1];\n", NEURON_NUM);
         content += &format!(
-            "\treal inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}}",
+            "\treal inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}};\n",
             minimums.get("Vds").unwrap(),
             maximums.get("Vds").unwrap(),
             minimums.get("Vds").unwrap(),
@@ -97,13 +97,14 @@ impl SimpleNet {
         );
         content += &format!("\t`MATMUL(W1, inputs, X1, {}, 1, 2);\n", NEURON_NUM);
         content += &format!("\t`MATADD(X1, B1, {}, 1);\n", NEURON_NUM);
-        // content += &format!("\tAPPLY RELU FUNCTION!");
+        content += &format!("\t`relu(X1, {})", NEURON_NUM);
         content += &format!("\treal X2[0:{}-1];\n", NEURON_NUM);
         content += &format!(
             "\t`MATMUL(W2, X1, X2, {}, 1, {});\n",
             NEURON_NUM, NEURON_NUM
         );
         content += &format!("\t`MATADD(X2, B2, {}, 1);\n", NEURON_NUM);
+        content += &format!("\t`relu(X2, {})", NEURON_NUM);
         content += "\treal X3[0:0];\n";
         content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, {});\n", NEURON_NUM);
         content += "\t`MATADD(X3, B3, 1, 1);\n";
@@ -121,7 +122,7 @@ impl SimpleNet {
 
 impl ModuleT for SimpleNet {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let y = self.input_layer.forward_t(&xs, train);
+        let y = self.input_layer.forward_t(&xs, train).relu();
         let y = self.hidden_layer.forward_t(&y, train).relu();
         let y = self.output_layer.forward_t(&y, train);
 
