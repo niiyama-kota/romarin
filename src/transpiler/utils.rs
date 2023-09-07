@@ -11,7 +11,7 @@ pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -
     ret += &format!(
         "real {}[0:{}] = {{\\\n",
         alias,
-        break_line_num.unwrap_or(1) - 1
+        ts.numel() - 1
     );
     let mut raw_ts: Vec<f32> = vec![0.0; ts.numel()];
     ts.copy_data(&mut raw_ts, ts.numel());
@@ -72,7 +72,7 @@ pub fn declare_matrix_add() -> String {
     return ret;
 }
 
-pub fn mosfet_template(content: &str) -> String {
+pub fn mosfet_template(header: &str, analog_behavior: &str) -> String {
     let mut ret = "".to_owned();
     ret += "module mosfet(term_G, term_D, term_S);\n";
     ret += "\tinout term_G, term_D, term_S;\n";
@@ -82,12 +82,14 @@ pub fn mosfet_template(content: &str) -> String {
     ret += "\tbranch (term_G, term_D) b_gd;\n";
     ret += "\tbranch (term_D, term_S) b_ds;\n";
 
+    ret += header;
+
     ret += "// define analog behavior\n";
     ret += "\tanalog begin\n";
     ret += "\tVgs = V(b_gs);\n";
     ret += "\tVds = V(b_ds);\n";
     ret += "\tVgd = V(b_gd);\n";
-    ret += content;
+    ret += analog_behavior;
     ret += "\tend // analog block\n";
 
     ret += "endmodule // mosfet\n";

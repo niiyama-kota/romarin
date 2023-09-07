@@ -8,7 +8,7 @@ use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
 use crate::loader::{self, min_max_scaling, DataSet};
-use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template};
+use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template, declare_matrix_mul, declare_matrix_add};
 
 const NEURON_NUM: i64 = 500;
 const EPOCH: i64 = 10000;
@@ -51,43 +51,51 @@ impl SimpleNet {
         let data_output_path = Path::new("./data");
         create_dir_all(&data_output_path)?;
         let mut w = BufWriter::new(File::create(data_output_path.join("model_parameters.va"))?);
-
+        
+        writeln!(w, "{}", "`include \"disciplines.vams\"")?;
+        
         let declare_relu = declare_activation(utils::Activations::ReLU);
         // `define relu(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n\tend\n
         writeln!(w, "{}", declare_relu)?;
-
-        let mut content = "\t".to_owned();
-
+        writeln!(w, "{}", declare_matrix_mul())?;
+        writeln!(w, "{}", declare_matrix_add())?;
+        
+        let mut header = "".to_owned();
+        header += "real i, j, k;";
+        header += "real Vgs, Vds, Vgd;";
+        
         let l1 = &self.input_layer;
         let ws = &l1.ws;
         let declare_w1 = declare_tensor(ws, "W1", Some(2));
-        content += &declare_w1.replace("\n", "\n\t");
+        header += &declare_w1.replace("\n", "\n\t");
         if let Some(bs) = &l1.bs {
             let declare_b1 = declare_tensor(bs, "B1", Some(1));
-            content += &declare_b1.replace("\n", "\n\t");
+            header += &declare_b1.replace("\n", "\n\t");
         }
-
+        
         let l2 = &self.hidden_layer;
         let ws = &l2.ws;
         let declare_w2 = declare_tensor(ws, "W2", Some(NEURON_NUM as usize));
-        content += &declare_w2.replace("\n", "\n\t");
+        header += &declare_w2.replace("\n", "\n\t");
         if let Some(bs) = &l2.bs {
             let declare_b2 = declare_tensor(bs, "B2", Some(1));
-            content += &declare_b2.replace("\n", "\n\t")
+            header += &declare_b2.replace("\n", "\n\t");
         }
-
+        
         let l3 = &self.output_layer;
         let ws = &l3.ws;
         let declare_w3 = declare_tensor(ws, "W3", Some(NEURON_NUM as usize));
-        content += &declare_w3.replace("\n", "\n\t");
+        header += &declare_w3.replace("\n", "\n\t");
         if let Some(bs) = &l3.bs {
             let declare_b3 = declare_tensor(bs, "B3", Some(1));
-            content += &declare_b3.replace("\n", "\n\t");
+            header += &declare_b3.replace("\n", "\n\t");
         }
-
-        content += &format!("real X1[0:{}-1];\n", NEURON_NUM);
-        content += &format!(
-            "\treal inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}};\n",
+        
+        header += &format!("\nreal X1[0:{}-1];\n", NEURON_NUM);
+        header += &format!("real X2[0:{}-1];\n", NEURON_NUM);
+        header += "real X3[0:0];\n";
+        header += &format!(
+            "real inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}};\n",
             minimums.get("Vds").unwrap(),
             maximums.get("Vds").unwrap(),
             minimums.get("Vds").unwrap(),
@@ -95,27 +103,27 @@ impl SimpleNet {
             maximums.get("Vgs").unwrap(),
             minimums.get("Vgs").unwrap(),
         );
+
+        let mut content = "".to_owned();
         content += &format!("\t`MATMUL(W1, inputs, X1, {}, 1, 2);\n", NEURON_NUM);
         content += &format!("\t`MATADD(X1, B1, {}, 1);\n", NEURON_NUM);
-        content += &format!("\t`relu(X1, {})", NEURON_NUM);
-        content += &format!("\treal X2[0:{}-1];\n", NEURON_NUM);
+        content += &format!("\t`relu(X1, {});\n", NEURON_NUM);
         content += &format!(
             "\t`MATMUL(W2, X1, X2, {}, 1, {});\n",
             NEURON_NUM, NEURON_NUM
         );
         content += &format!("\t`MATADD(X2, B2, {}, 1);\n", NEURON_NUM);
         content += &format!("\t`relu(X2, {})", NEURON_NUM);
-        content += "\treal X3[0:0];\n";
         content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, {});\n", NEURON_NUM);
         content += "\t`MATADD(X3, B3, 1, 1);\n";
         content += &format!(
-            "\tIds <+ {} - X3[0] * ({} - {});\n",
+            "\tI(b_ds) <+ {} - X3[0] * ({} - {});\n",
             maximums.get("Ids").unwrap(),
             maximums.get("Ids").unwrap(),
             minimums.get("Ids").unwrap()
         );
 
-        writeln!(w, "{}", mosfet_template(&content))?;
+        writeln!(w, "{}", mosfet_template(&header, &content))?;
         Ok(())
     }
 }
