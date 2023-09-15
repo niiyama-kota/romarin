@@ -86,9 +86,9 @@ pub fn mosfet_template(header: &str, analog_behavior: &str) -> String {
 
     ret += "// define analog behavior\n";
     ret += "\tanalog begin\n";
-    ret += "\tVgs = V(b_gs);\n";
-    ret += "\tVds = V(b_ds);\n";
-    ret += "\tVgd = V(b_gd);\n";
+    // ret += "\tVgs = V(b_gs);\n";
+    // ret += "\tVds = V(b_ds);\n";
+    // ret += "\tVgd = V(b_gd);\n";
     ret += analog_behavior;
     ret += "\tend // analog block\n";
 

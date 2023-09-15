@@ -61,8 +61,8 @@ impl SimpleNet {
         writeln!(w, "{}", declare_matrix_add())?;
         
         let mut header = "".to_owned();
-        header += "real i, j, k;";
-        header += "real Vgs, Vds, Vgd;";
+        header += "\treal i, j, k;\n";
+        header += "\treal Vgs, Vds, Vgd;\n";
         
         let l1 = &self.input_layer;
         let ws = &l1.ws;
@@ -91,11 +91,11 @@ impl SimpleNet {
             header += &declare_b3.replace("\n", "\n\t");
         }
         
-        header += &format!("\nreal X1[0:{}-1];\n", NEURON_NUM);
-        header += &format!("real X2[0:{}-1];\n", NEURON_NUM);
-        header += "real X3[0:0];\n";
+        header += &format!("\n\treal X1[0:({})-1];\n", NEURON_NUM);
+        header += &format!("\treal X2[0:({})-1];\n", NEURON_NUM);
+        header += "\treal X3[0:0];\n";
         header += &format!(
-            "real inputs[0:1] = {{(Vds - {})/({} - {}), (Vgs - {})/({} - {})}};\n",
+            "\treal inputs[0:1] = {{(Vds - ({}))/(({}) - ({})), (Vgs - ({}))/(({}) - ({}))}};\n",
             minimums.get("Vds").unwrap(),
             maximums.get("Vds").unwrap(),
             minimums.get("Vds").unwrap(),
@@ -105,19 +105,19 @@ impl SimpleNet {
         );
 
         let mut content = "".to_owned();
-        content += &format!("\t`MATMUL(W1, inputs, X1, {}, 1, 2);\n", NEURON_NUM);
-        content += &format!("\t`MATADD(X1, B1, {}, 1);\n", NEURON_NUM);
-        content += &format!("\t`relu(X1, {});\n", NEURON_NUM);
+        content += &format!("\t`MATMUL(W1, inputs, X1, ({}), 1, 2);\n", NEURON_NUM);
+        content += &format!("\t`MATADD(X1, B1, ({}), 1);\n", NEURON_NUM);
+        content += &format!("\t`relu(X1, ({}));\n", NEURON_NUM);
         content += &format!(
-            "\t`MATMUL(W2, X1, X2, {}, 1, {});\n",
+            "\t`MATMUL(W2, X1, X2, ({}), 1, ({}));\n",
             NEURON_NUM, NEURON_NUM
         );
-        content += &format!("\t`MATADD(X2, B2, {}, 1);\n", NEURON_NUM);
-        content += &format!("\t`relu(X2, {})", NEURON_NUM);
-        content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, {});\n", NEURON_NUM);
+        content += &format!("\t`MATADD(X2, B2, ({}), 1);\n", NEURON_NUM);
+        content += &format!("\t`relu(X2, ({}))", NEURON_NUM);
+        content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, ({}));\n", NEURON_NUM);
         content += "\t`MATADD(X3, B3, 1, 1);\n";
         content += &format!(
-            "\tI(b_ds) <+ {} - X3[0] * ({} - {});\n",
+            "\tI(b_ds) <+ ({}) - X3[0] * (({}) - ({}));\n",
             maximums.get("Ids").unwrap(),
             maximums.get("Ids").unwrap(),
             minimums.get("Ids").unwrap()
