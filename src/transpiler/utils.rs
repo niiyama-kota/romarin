@@ -97,6 +97,18 @@ pub fn mosfet_template(header: &str, analog_behavior: &str) -> String {
     return ret;
 }
 
+pub fn array_init(size: usize) -> String {
+    let mut ret = "".to_owned();
+    ret += "{";
+    for _ in 0..size {
+        ret += "0, ";
+    }
+    ret += "}";
+    ret = ret.replace(", }", "}");
+
+    return ret;
+}
+
 #[test]
 fn test_declare_tensor() {
     use tch::Kind;
@@ -139,4 +151,10 @@ fn test_declare_matrix_add() {
     let expected: String = "`ifndef MATADD\\\n`define MATADD(A, B, dim1, dim2)\\\n\tfor (i = 0; i < dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < dim2; j = j + 1) begin\\\n\t\t\tA[i*dim2 + j] = A[i*dim2 + j] + B[i*dim2 + j];\\\n\t\tend\\\n\tend\\\n".to_owned();
 
     assert_eq!(declare_matrix_add(), expected);
+}
+
+#[test]
+fn test_array_init() {
+    let expected = "{0, 0, 0}";
+    assert_eq!(array_init(3), expected);
 }

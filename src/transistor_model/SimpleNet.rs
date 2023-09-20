@@ -8,10 +8,10 @@ use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
 use crate::loader::{self, min_max_scaling, DataSet};
-use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template, declare_matrix_mul, declare_matrix_add};
+use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template, declare_matrix_mul, declare_matrix_add, array_init};
 
-const NEURON_NUM: i64 = 500;
-const EPOCH: i64 = 10000;
+const NEURON_NUM: i64 = 100;
+const EPOCH: i64 = 100000;
 
 #[derive(Debug)]
 struct SimpleNet {
@@ -61,8 +61,8 @@ impl SimpleNet {
         writeln!(w, "{}", declare_matrix_add())?;
         
         let mut header = "".to_owned();
-        header += "\treal i, j, k;\n";
-        header += "\treal Vgs, Vds, Vgd;\n";
+        header += "\treal i, j, k;\n\t";
+        // header += "\treal Vgs, Vds, Vgd;\n";
         
         let l1 = &self.input_layer;
         let ws = &l1.ws;
@@ -91,11 +91,14 @@ impl SimpleNet {
             header += &declare_b3.replace("\n", "\n\t");
         }
         
-        header += &format!("\n\treal X1[0:({})-1];\n", NEURON_NUM);
-        header += &format!("\treal X2[0:({})-1];\n", NEURON_NUM);
-        header += "\treal X3[0:0];\n";
-        header += &format!(
-            "\treal inputs[0:1] = {{(Vds - ({}))/(({}) - ({})), (Vgs - ({}))/(({}) - ({}))}};\n",
+        header += &format!("\n\treal inputs[0:1] = {};\n", array_init(2));
+        header += &format!("\treal X1[0:({})-1] = {};\n", NEURON_NUM, array_init(NEURON_NUM as usize));
+        header += &format!("\treal X2[0:({})-1] = {};\n", NEURON_NUM, array_init(NEURON_NUM as usize));
+        header += "\treal X3[0:0] = {0};\n";
+
+        let mut content = "".to_owned();
+        content += &format!(
+            "\tinputs = {{(V(b_ds) - ({}))/(({}) - ({})), (V(b_gs) - ({}))/(({}) - ({}))}};\n",
             minimums.get("Vds").unwrap(),
             maximums.get("Vds").unwrap(),
             minimums.get("Vds").unwrap(),
@@ -103,8 +106,7 @@ impl SimpleNet {
             maximums.get("Vgs").unwrap(),
             minimums.get("Vgs").unwrap(),
         );
-
-        let mut content = "".to_owned();
+        content += &format!("\t`relu(inputs, ({}));\n", 2);
         content += &format!("\t`MATMUL(W1, inputs, X1, ({}), 1, 2);\n", NEURON_NUM);
         content += &format!("\t`MATADD(X1, B1, ({}), 1);\n", NEURON_NUM);
         content += &format!("\t`relu(X1, ({}));\n", NEURON_NUM);
@@ -113,12 +115,12 @@ impl SimpleNet {
             NEURON_NUM, NEURON_NUM
         );
         content += &format!("\t`MATADD(X2, B2, ({}), 1);\n", NEURON_NUM);
-        content += &format!("\t`relu(X2, ({}))", NEURON_NUM);
+        content += &format!("\t`relu(X2, ({}));\n", NEURON_NUM);
         content += &format!("\t`MATMUL(W3, X2, X3, 1, 1, ({}));\n", NEURON_NUM);
         content += "\t`MATADD(X3, B3, 1, 1);\n";
         content += &format!(
-            "\tI(b_ds) <+ ({}) - X3[0] * (({}) - ({}));\n",
-            maximums.get("Ids").unwrap(),
+            "\tI(b_ds) <+ ({}) + X3[0] * (({}) - ({}));\n",
+            minimums.get("Ids").unwrap(),
             maximums.get("Ids").unwrap(),
             minimums.get("Ids").unwrap()
         );
