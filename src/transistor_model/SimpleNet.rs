@@ -61,7 +61,7 @@ impl SimpleNet {
         writeln!(w, "{}", declare_matrix_add())?;
         
         let mut header = "".to_owned();
-        header += "\treal i, j, k;\n\t";
+        header += "\tinteger i, j, k;\n\t";
         // header += "\treal Vgs, Vds, Vgd;\n";
         
         let l1 = &self.input_layer;
@@ -98,7 +98,7 @@ impl SimpleNet {
 
         let mut content = "".to_owned();
         content += &format!(
-            "\tinputs = {{(V(b_ds) - ({}))/(({}) - ({})), (V(b_gs) - ({}))/(({}) - ({}))}};\n",
+            "\tinputs[0] = (V(b_ds) - ({}))/(({}) - ({}));\n\tinputs[1] = (V(b_gs) - ({}))/(({}) - ({}));\n",
             minimums.get("Vds").unwrap(),
             maximums.get("Vds").unwrap(),
             minimums.get("Vds").unwrap(),
