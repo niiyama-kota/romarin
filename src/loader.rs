@@ -1,10 +1,10 @@
 use anyhow::Result;
 use csv;
+use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use tch::Tensor;
-use serde::{Deserialize, Deserializer};
 
 pub trait DataSet {
     // fn into_tensor(self: &Self) -> Tensor;
