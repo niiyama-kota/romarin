@@ -8,11 +8,7 @@ pub enum Activations {
 
 pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -> String {
     let mut ret: String = "".to_owned();
-    ret += &format!(
-        "real {}[0:{}] = {{\\\n",
-        alias,
-        ts.numel() - 1
-    );
+    ret += &format!("real {}[0:{}] = {{\\\n", alias, ts.numel() - 1);
     let mut raw_ts: Vec<f32> = vec![0.0; ts.numel()];
     ts.copy_data(&mut raw_ts, ts.numel());
     for (i, raw_t) in raw_ts.into_iter().enumerate() {

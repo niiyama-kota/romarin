@@ -8,7 +8,10 @@ use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
 use crate::loader::{self, min_max_scaling, DataSet};
-use crate::transpiler::utils::{self, declare_activation, declare_tensor, mosfet_template, declare_matrix_mul, declare_matrix_add, array_init};
+use crate::transpiler::utils::{
+    self, array_init, declare_activation, declare_matrix_add, declare_matrix_mul, declare_tensor,
+    mosfet_template,
+};
 
 const NEURON_NUM: i64 = 100;
 const EPOCH: i64 = 100000;
@@ -51,19 +54,19 @@ impl SimpleNet {
         let data_output_path = Path::new("./data");
         create_dir_all(&data_output_path)?;
         let mut w = BufWriter::new(File::create(data_output_path.join("model_parameters.va"))?);
-        
+
         writeln!(w, "{}", "`include \"disciplines.vams\"")?;
-        
+
         let declare_relu = declare_activation(utils::Activations::ReLU);
         // `define relu(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n\tend\n
         writeln!(w, "{}", declare_relu)?;
         writeln!(w, "{}", declare_matrix_mul())?;
         writeln!(w, "{}", declare_matrix_add())?;
-        
+
         let mut header = "".to_owned();
         header += "\tinteger i, j, k;\n\t";
         // header += "\treal Vgs, Vds, Vgd;\n";
-        
+
         let l1 = &self.input_layer;
         let ws = &l1.ws;
         let declare_w1 = declare_tensor(ws, "W1", Some(2));
@@ -72,7 +75,7 @@ impl SimpleNet {
             let declare_b1 = declare_tensor(bs, "B1", Some(1));
             header += &declare_b1.replace("\n", "\n\t");
         }
-        
+
         let l2 = &self.hidden_layer;
         let ws = &l2.ws;
         let declare_w2 = declare_tensor(ws, "W2", Some(NEURON_NUM as usize));
@@ -81,7 +84,7 @@ impl SimpleNet {
             let declare_b2 = declare_tensor(bs, "B2", Some(1));
             header += &declare_b2.replace("\n", "\n\t");
         }
-        
+
         let l3 = &self.output_layer;
         let ws = &l3.ws;
         let declare_w3 = declare_tensor(ws, "W3", Some(NEURON_NUM as usize));
@@ -90,10 +93,18 @@ impl SimpleNet {
             let declare_b3 = declare_tensor(bs, "B3", Some(1));
             header += &declare_b3.replace("\n", "\n\t");
         }
-        
+
         header += &format!("\n\treal inputs[0:1] = {};\n", array_init(2));
-        header += &format!("\treal X1[0:({})-1] = {};\n", NEURON_NUM, array_init(NEURON_NUM as usize));
-        header += &format!("\treal X2[0:({})-1] = {};\n", NEURON_NUM, array_init(NEURON_NUM as usize));
+        header += &format!(
+            "\treal X1[0:({})-1] = {};\n",
+            NEURON_NUM,
+            array_init(NEURON_NUM as usize)
+        );
+        header += &format!(
+            "\treal X2[0:({})-1] = {};\n",
+            NEURON_NUM,
+            array_init(NEURON_NUM as usize)
+        );
         header += "\treal X3[0:0] = {0};\n";
 
         let mut content = "".to_owned();
