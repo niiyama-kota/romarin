@@ -1,7 +1,9 @@
+use anyhow::Result;
+
 use crate::transpiler::utils::Activations;
 use tch::{
-    nn::{self, Module},
-    Tensor,
+    nn::{self, Module, OptimizerConfig},
+    Tensor, Device,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -24,36 +26,57 @@ pub struct graph {
 }
 
 impl graph {
-    fn train(&self) {}
+    fn train(&self, epoch: usize, x: Tensor, y: Tensor) -> Result<()> {
+        let vs = nn::VarStore::new(Device::Cpu);
+        let mut opt = nn::AdamW::default().build(&vs, 1e-5)?;
+        let mut losses = Vec::<f64>::new();
+        for _epoch in 1..=epoch {
+            opt.zero_grad();
+            let loss = self.forward(&x).mse_loss(&y, tch::Reduction::Mean);
+            // loss.print();
+            opt.backward_step(&loss);
+            losses.push(loss.double_value(&[]));
+            println!("epoch: {}", _epoch);
+        }
+
+        Ok(())
+    }
 
     fn add_edge(&mut self, e: edge) {
-        todo!()
+        self.edge_list.push(e);
     }
 }
 
 impl Module for graph {
-    fn forward(&self, inputs: Vec<f32>) -> Vec<f32> {
-        let mut variables = Vec::<Vec<f32>>::new();
-        variables.push(inputs.to_vec());
+    fn forward(&self, inputs: &Tensor) -> Tensor {
+        let mut v: Tensor = inputs.copy();
+        if let Some(e) = self.edge_list.first() {
+            match e.from.act {
+                Activations::Sigmoid => &v.sigmoid(),
+                Activations::Tanh => &v.tanh(),
+                Activations::ReLU => &v.relu(),
+            }
+        } else {
+            // meaning empty graph
+            panic!();
+        };
+
         for (i, e) in self.edge_list.iter().enumerate() {
             let t = &e.trans;
-            let v: &Vec<f32> = &variables[i];
             // this forwarding apply transform W * v + B
-            let tmp = t.forward(&Tensor::from_slice(v.as_slice()));
-            let mut v = vec![0.0f32; tmp.numel()];
-            tmp.copy_data(&mut v, tmp.numel());
-            let v: Vec<f32> = v
-                .iter()
-                .map(|x| match e.from.act {
-                    Activations::Sigmoid => todo!(),
-                    Activations::Tanh => todo!(),
-                    Activations::ReLU => todo!(),
-                })
-                .collect();
-
-            variables.push(v);
+            let v = t.forward(&v);
+            let v = match e.to.act {
+                Activations::Sigmoid => v.sigmoid(),
+                Activations::Tanh => v.tanh(),
+                Activations::ReLU => v.relu(),
+            };
         }
 
-        return variables.last().unwrap().clone();
+        return v;
     }
+}
+
+#[test]
+fn test_graph_function() {
+    let mut g = graph {edge_list: Vec::<edge>::new()};
 }
