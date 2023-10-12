@@ -1,3 +1,5 @@
+use tch::nn;
+
 #[derive(PartialEq, Debug)]
 pub enum Node {
     ID(String),

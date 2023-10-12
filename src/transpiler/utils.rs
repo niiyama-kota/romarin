@@ -1,5 +1,6 @@
 use tch::Tensor;
 
+#[derive(Clone, Copy, Debug)]
 pub enum Activations {
     Sigmoid,
     Tanh,
