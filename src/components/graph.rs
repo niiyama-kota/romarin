@@ -1,7 +1,7 @@
 use std::{collections::HashMap, hash::Hash};
 
 use crate::transpiler::utils::{
-    array_init, declare_linear, declare_matrix_add, declare_matrix_mul, declare_tensor, Activations,
+    array_init, declare_linear, declare_matrix_add, declare_matrix_mul, Activations,
 };
 use anyhow::Result;
 use tch::{
