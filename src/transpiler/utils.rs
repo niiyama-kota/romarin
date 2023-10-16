@@ -1,7 +1,8 @@
-use tch::Tensor;
+use tch::{nn, Tensor};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum Activations {
+    Id,
     Sigmoid,
     Tanh,
     ReLU,
@@ -23,15 +24,34 @@ pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -
     return ret;
 }
 
+pub fn declare_linear(linear: &nn::Linear, alias: &str) -> String {
+    let size = linear.ws.size2().unwrap();
+    let mut ret = "".to_owned();
+
+    ret += &declare_tensor(
+        &linear.ws,
+        &format!("{}{}", alias, "_ws"),
+        Some(size.1 as usize),
+    );
+    if let Some(bs) = &linear.bs {
+        ret += &declare_tensor(bs, &format!("{}{}", alias, "_bs"), Some(1));
+    } else {
+    }
+
+    return ret;
+}
+
 pub fn declare_activation(activation_kind: Activations) -> String {
     let mut ret = "".to_owned();
     match activation_kind {
+        Activations::Id => (),
         Activations::Sigmoid => ret += "`define sigmoid(xs, x_dim)\\\n",
         Activations::Tanh => ret += "`define tanh(xs, x_dim)\\\n",
         Activations::ReLU => ret += "`define relu(xs, x_dim)\\\n",
     }
     ret += "\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n";
     match activation_kind {
+        Activations::Id => (),
         Activations::Sigmoid => ret += "\t\txs[i] = 1 / (1 + exp(-xs[i]));\\\n",
         Activations::Tanh => ret += "\t\txs[i] = tanh(xs[i]);\\\n",
         Activations::ReLU => ret += "\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n",
