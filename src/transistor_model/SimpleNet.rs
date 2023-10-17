@@ -94,16 +94,16 @@ impl SimpleNet {
             header += &declare_b3.replace("\n", "\n\t");
         }
 
-        header += &format!("\n\treal inputs[0:1] = {};\n", array_init(2));
+        header += &format!("\n\treal inputs[0:1] = {};\n", array_init(2, 0.0));
         header += &format!(
             "\treal X1[0:({})-1] = {};\n",
             NEURON_NUM,
-            array_init(NEURON_NUM as usize)
+            array_init(NEURON_NUM as usize, 0.0)
         );
         header += &format!(
             "\treal X2[0:({})-1] = {};\n",
             NEURON_NUM,
-            array_init(NEURON_NUM as usize)
+            array_init(NEURON_NUM as usize, 0.0)
         );
         header += "\treal X3[0:0] = {0};\n";
 
@@ -143,9 +143,9 @@ impl SimpleNet {
 
 impl ModuleT for SimpleNet {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let y = self.input_layer.forward_t(&xs, train).relu();
+        let y = self.input_layer.forward_t(&xs, train);
         let y = self.hidden_layer.forward_t(&y, train).relu();
-        let y = self.output_layer.forward_t(&y, train);
+        let y = self.output_layer.forward_t(&y, train).relu();
 
         return y;
     }

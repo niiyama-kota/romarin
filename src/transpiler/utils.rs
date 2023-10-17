@@ -65,11 +65,13 @@ pub fn declare_matrix_mul() -> String {
     let mut ret = "".to_owned();
     ret += "`ifndef MATMUL\\\n";
     ret += "`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n";
+    ret += "\treal tmp = 0.0;\\\n";
     ret += "\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n";
     ret += "\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n";
     ret += "\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n";
-    ret += "\t\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] + A[i*K + k]*B[k*C_dim2 + j];\\\n";
+    ret += "\t\t\t\ttmp = tmp + A[i*K + k]*B[k*C_dim2 + j];\\\n";
     ret += "\t\t\tend\\\n";
+    ret += "\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] * tmp;\\\n";
     ret += "\t\tend\\\n";
     ret += "\tend\\\n";
 
@@ -114,11 +116,11 @@ pub fn mosfet_template(header: &str, analog_behavior: &str) -> String {
     return ret;
 }
 
-pub fn array_init(size: usize) -> String {
+pub fn array_init(size: usize, id: f32) -> String {
     let mut ret = "".to_owned();
     ret += "{";
     for _ in 0..size {
-        ret += "0, ";
+        ret += &format!("{id}, ");
     }
     ret += "}";
     ret = ret.replace(", }", "}");
@@ -158,7 +160,7 @@ fn test_declare_activation() {
 
 #[test]
 fn test_declare_matrix_mul() {
-    let expected: String = "`ifndef MATMUL\\\n`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n\t\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] + A[i*K + k]*B[k*C_dim2 + j];\\\n\t\t\tend\\\n\t\tend\\\n\tend\\\n".to_owned();
+    let expected: String = "`ifndef MATMUL\\\n`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n\treal tmp = 0.0;\\\n\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n\t\t\t\ttmp = tmp + A[i*K + k]*B[k*C_dim2 + j];\\\n\t\t\tend\\\n\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] * tmp;\\\n\t\tend\\\n\tend\\\n".to_owned();
 
     assert_eq!(declare_matrix_mul(), expected);
 }
@@ -173,5 +175,5 @@ fn test_declare_matrix_add() {
 #[test]
 fn test_array_init() {
     let expected = "{0, 0, 0}";
-    assert_eq!(array_init(3), expected);
+    assert_eq!(array_init(3, 0.0), expected);
 }
