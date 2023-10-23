@@ -127,10 +127,10 @@ impl Graph {
             } else {
                 let var = fresh();
                 content += &format!(
-                    "real n{}[0:{}] = {};\n",
+                    "real n{}[0:{}] = {};",
                     var,
                     from.size,
-                    array_init(from.size)
+                    array_init(from.size, 1.0)
                 );
                 node_variables.insert(from, var);
             }
@@ -139,7 +139,12 @@ impl Graph {
             if let Some(_) = node_variables.get(&to) {
             } else {
                 let var = fresh();
-                content += &format!("real n{}[0:{}] = {};\n", var, to.size, array_init(to.size));
+                content += &format!(
+                    "real n{}[0:{}] = {};",
+                    var,
+                    to.size,
+                    array_init(to.size, 1.0)
+                );
                 node_variables.insert(to, var);
             }
         }
@@ -147,7 +152,7 @@ impl Graph {
         // content += &format!("real n0[0:1] = {{V(b_DS), V(b_GS)}}");
         content += input;
         content += &format!(
-            "n{} = {{V(b_DS), V(b_GS)}}",
+            "n{} = {{V(b_DS), V(b_GS)}};",
             *node_variables
                 .get(&self.edge_list.first().unwrap().from)
                 .unwrap()
