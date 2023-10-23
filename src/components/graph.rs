@@ -30,16 +30,16 @@ impl Node {
                 ret += &format!("/// applying Id to n{var} ///\n");
             }
             Activations::Sigmoid => {
-                ret += &format!("for(integer i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = n{var}[i] = 1 / (1 + exp(-n{var}[i]));\nend\n", self.size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = n{var}[i] = 1 / (1 + exp(-n{var}[i]));\nend\n", self.size);
             }
             Activations::Tanh => {
                 ret += &format!(
-                    "for(integer i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = tanh(n{var}[i]);\nend\n",
+                    "for(i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = tanh(n{var}[i]);\nend\n",
                     self.size
                 );
             }
             Activations::ReLU => {
-                ret += &format!("for(integer i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = (n{var}[i] + abs(n{var}[i])) / 2;\nend\n", self.size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = (n{var}[i] + abs(n{var}[i])) / 2;\nend\n", self.size);
             }
         }
 
@@ -109,10 +109,11 @@ impl Graph {
         // assume no multiple edges
         let mut edge_variables = HashMap::<(Node, Node), usize>::new();
 
-        let mut header = "`include \"disciplines.vams\"\n".to_owned();
+        let mut header = "`include \"disciplines.vams\"\n\n".to_owned();
         header += &declare_matrix_mul();
+        header += "\n";
         header += &declare_matrix_add();
-        header += "\nmodule mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, termD, term_S;\n\n";
+        header += "\nmodule mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, term_D, term_S;\n\tbranch (term_G, term_S) b_gs;\n\tbranch (term_G, term_D) b_gd;\n\tbranch (term_D, term_S) b_ds;\n\n\tinteger i, j, k;\n\treal tmp = 0.0;\n\n";
 
         let mut content = "\t".to_owned();
 
@@ -129,7 +130,7 @@ impl Graph {
                 content += &format!(
                     "real n{}[0:{}] = {};\n",
                     var,
-                    from.size,
+                    from.size - 1,
                     array_init(from.size, 1.0)
                 );
                 node_variables.insert(from, var);
@@ -142,7 +143,7 @@ impl Graph {
                 content += &format!(
                     "real n{}[0:{}] = {};\n",
                     var,
-                    to.size,
+                    to.size - 1,
                     array_init(to.size, 1.0)
                 );
                 node_variables.insert(to, var);
@@ -152,7 +153,7 @@ impl Graph {
         // content += &format!("real n0[0:1] = {{V(b_DS), V(b_GS)}}");
         content += input;
         content += &format!(
-            "n{} = {{V(b_DS), V(b_GS)}};\n",
+            "n{} = {{V(b_ds), V(b_gs)}};\n",
             *node_variables
                 .get(&self.edge_list.first().unwrap().from)
                 .unwrap()
@@ -166,8 +167,8 @@ impl Graph {
             let &e_var = edge_variables.get(&edge).unwrap();
             content += &from.gen_verilog(from_var);
             content += &format!(
-                "`MATMULL(l{e_var}_ws, n{from_var}, n{to_var}, {}, 1, {});\n",
-                from.size, to.size
+                "`MATMUL(l{e_var}_ws, n{from_var}, n{to_var}, {}, 1, {});\n",
+                to.size, from.size
             );
             content += &format!("`MATADD(n{to_var}, l{e_var}_bs, {}, 1);\n", to.size);
         }
@@ -179,7 +180,7 @@ impl Graph {
             *node_variables.get(&last_node).unwrap()
         );
 
-        let footer = "\nendmodule\n";
+        let footer = "\nend //end analog block\nendmodule\n";
 
         return format!("{}{}{}", header, content.replace("\n", "\n\t"), footer);
     }
@@ -310,5 +311,8 @@ fn test_train() {
 
     let _ = g.train(&xs, &y, 10000, 1e-3);
 
-    println!("{}", g.gen_verilog("/// input ///\n", "/// output ///\nI(b_ds) <+ "));
+    println!(
+        "{}",
+        g.gen_verilog("analog begin\n/// input ///\n", "/// output ///\nI(b_ds) <+ ")
+    );
 }

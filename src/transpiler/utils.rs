@@ -65,7 +65,7 @@ pub fn declare_matrix_mul() -> String {
     let mut ret = "".to_owned();
     ret += "`ifndef MATMUL\\\n";
     ret += "`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n";
-    ret += "\treal tmp = 0.0;\\\n";
+    ret += "\ttmp = 0.0;\\\n";
     ret += "\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n";
     ret += "\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n";
     ret += "\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n";
