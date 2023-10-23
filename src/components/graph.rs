@@ -5,8 +5,8 @@ use crate::transpiler::utils::{
 };
 use anyhow::Result;
 use tch::{
-    nn::{self, Module, OptimizerConfig},
-    Device, Kind, Tensor,
+    nn::{self, Module, OptimizerConfig, VarStore},
+    Device, Tensor,
 };
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
@@ -67,16 +67,20 @@ impl Edge {
 
 #[derive(Debug)]
 pub struct Graph {
+    vs: VarStore,
     edge_list: Vec<Edge>,
 }
 
 impl Graph {
     fn new() -> Self {
-        Graph { edge_list: vec![] }
+        Graph {
+            vs: nn::VarStore::new(Device::Cpu),
+            edge_list: vec![],
+        }
     }
 
-    fn train(&self, vs: nn::VarStore, xs: &Tensor, y: &Tensor, epoch: usize) -> Result<()> {
-        let mut opt = nn::AdamW::default().build(&vs, 1e-5)?;
+    fn train(&self, xs: &Tensor, y: &Tensor, epoch: usize, lr: f64) -> Result<()> {
+        let mut opt = nn::AdamW::default().build(&self.vs, lr)?;
         let mut losses = Vec::<f64>::new();
 
         for _epoch in 1..=epoch {
@@ -105,10 +109,10 @@ impl Graph {
         // assume no multiple edges
         let mut edge_variables = HashMap::<(Node, Node), usize>::new();
 
-        let mut header = "".to_owned();
+        let mut header = "`include \"disciplines.vams\"\n".to_owned();
         header += &declare_matrix_mul();
         header += &declare_matrix_add();
-        header += "`include \"disciplines.vams\"\n\nmodule mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, termD, term_S;\n\n";
+        header += "\nmodule mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, termD, term_S;\n\n";
 
         let mut content = "\t".to_owned();
 
@@ -122,7 +126,12 @@ impl Graph {
             if let Some(_) = node_variables.get(&from) {
             } else {
                 let var = fresh();
-                content += &format!("real n{}[0:{}] = {}", var, from.size, array_init(from.size));
+                content += &format!(
+                    "real n{}[0:{}] = {};\n",
+                    var,
+                    from.size,
+                    array_init(from.size)
+                );
                 node_variables.insert(from, var);
             }
 
@@ -130,13 +139,19 @@ impl Graph {
             if let Some(_) = node_variables.get(&to) {
             } else {
                 let var = fresh();
-                content += &format!("real n{}[0:{}] = {}", var, to.size, array_init(to.size));
+                content += &format!("real n{}[0:{}] = {};\n", var, to.size, array_init(to.size));
                 node_variables.insert(to, var);
             }
         }
 
         // content += &format!("real n0[0:1] = {{V(b_DS), V(b_GS)}}");
         content += input;
+        content += &format!(
+            "n{} = {{V(b_DS), V(b_GS)}}",
+            *node_variables
+                .get(&self.edge_list.first().unwrap().from)
+                .unwrap()
+        );
         for e in self.edge_list.iter() {
             let from = e.from;
             let to = e.to;
@@ -151,6 +166,13 @@ impl Graph {
             );
             content += &format!("`MATADD(n{to_var}, l{e_var}_bs, {}, 1);\n", to.size);
         }
+
+        let last_node = self.edge_list.last().unwrap().to;
+        content += &last_node.gen_verilog(*node_variables.get(&last_node).unwrap());
+        content += &format!(
+            "{output}n{}[0];\n",
+            *node_variables.get(&last_node).unwrap()
+        );
 
         let footer = "\nendmodule\n";
 
@@ -177,7 +199,7 @@ impl Module for Graph {
                     Activations::Tanh => t.forward(&v.tanh()),
                     Activations::ReLU => t.forward(&v.relu()),
                 };
-                let acc = acc.copy() + term;
+                let acc = acc.copy() * term;
                 mp.insert(*to, acc);
             } else {
                 mp.insert(
@@ -203,14 +225,25 @@ impl Module for Graph {
 }
 
 #[test]
+fn test_hermite_prod() {
+    let x1 = &[1.0, 2.0, 4.0, 8.0];
+    let x2 = &[1.0, 0.5, 0.25, 0.125];
+    let y = &[1.0, 1.0, 1.0, 1.0];
+    let x1 = Tensor::from_slice(x1);
+    let x2 = Tensor::from_slice(x2);
+    let y = Tensor::from_slice(y);
+    assert_eq!(y, x1 * x2);
+}
+
+#[test]
 fn test_add_edge() {
-    let vs = nn::VarStore::new(Device::Cpu);
+    use tch::Kind;
 
     let mut g = Graph::new();
     g.add_edge(Edge {
         from: Node::new(2, Activations::Id),
         to: Node::new(5, Activations::ReLU),
-        trans: nn::linear(vs.root(), 2, 5, Default::default()),
+        trans: nn::linear(g.vs.root(), 2, 5, Default::default()),
     });
 
     g.edge_list.first().unwrap().trans.ws.print();
@@ -236,14 +269,14 @@ fn test_add_edge() {
 
 #[test]
 fn test_train() {
-    let vs = nn::VarStore::new(Device::Cpu);
+    use tch::Kind;
 
     let mut g = Graph::new();
     let n1 = Node::new(2, Activations::Id);
     let n2 = Node::new(5, Activations::ReLU);
     let n3 = Node::new(1, Activations::ReLU);
-    let l1 = nn::linear(vs.root(), 2, 5, Default::default());
-    let l2 = nn::linear(vs.root(), 5, 1, Default::default());
+    let l1 = nn::linear(g.vs.root(), 2, 5, Default::default());
+    let l2 = nn::linear(g.vs.root(), 5, 1, Default::default());
     g.add_edge(Edge {
         from: n1,
         to: n2,
@@ -270,7 +303,7 @@ fn test_train() {
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
 
-    let _ = g.train(vs, &xs, &y, 10000);
+    let _ = g.train(&xs, &y, 10000, 1e-3);
 
-    println!("{}", g.gen_verilog("// input\n", "// output\n"));
+    println!("{}", g.gen_verilog("// input\n", "// output\nI(b_ds) <+ "));
 }
