@@ -27,7 +27,7 @@ impl Node {
         let mut ret = "".to_owned();
         match self.act {
             Activations::Id => {
-                ret += &format!("// applying Id to n{var}\n");
+                ret += &format!("/// applying Id to n{var} ///\n");
             }
             Activations::Sigmoid => {
                 ret += &format!("for(integer i = 0; i < {}; i = i+1) begin\n\tn{var}[i] = n{var}[i] = 1 / (1 + exp(-n{var}[i]));\nend\n", self.size);
@@ -127,7 +127,7 @@ impl Graph {
             } else {
                 let var = fresh();
                 content += &format!(
-                    "real n{}[0:{}] = {};",
+                    "real n{}[0:{}] = {};\n",
                     var,
                     from.size,
                     array_init(from.size, 1.0)
@@ -140,7 +140,7 @@ impl Graph {
             } else {
                 let var = fresh();
                 content += &format!(
-                    "real n{}[0:{}] = {};",
+                    "real n{}[0:{}] = {};\n",
                     var,
                     to.size,
                     array_init(to.size, 1.0)
@@ -152,7 +152,7 @@ impl Graph {
         // content += &format!("real n0[0:1] = {{V(b_DS), V(b_GS)}}");
         content += input;
         content += &format!(
-            "n{} = {{V(b_DS), V(b_GS)}};",
+            "n{} = {{V(b_DS), V(b_GS)}};\n",
             *node_variables
                 .get(&self.edge_list.first().unwrap().from)
                 .unwrap()
@@ -310,5 +310,5 @@ fn test_train() {
 
     let _ = g.train(&xs, &y, 10000, 1e-3);
 
-    println!("{}", g.gen_verilog("// input\n", "// output\nI(b_ds) <+ "));
+    println!("{}", g.gen_verilog("/// input ///\n", "/// output ///\nI(b_ds) <+ "));
 }
