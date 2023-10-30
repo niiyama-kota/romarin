@@ -3,9 +3,35 @@ use tch::{nn, Tensor};
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum Activations {
     Id,
+    // Scale(Vec<f32>),
     Sigmoid,
     Tanh,
     ReLU,
+}
+
+impl Activations {
+    pub fn export_apply(&self, id: &str, size: usize) -> String {
+        let mut ret = "".to_owned();
+        match self {
+            Activations::Id => {
+                ret += &format!("/// applying Id to {id} ///\n");
+            }
+            Activations::Sigmoid => {
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = {id}[i] = 1 / (1 + exp(-{id}[i]));\nend\n", size);
+            }
+            Activations::Tanh => {
+                ret += &format!(
+                    "for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = tanh({id}[i]);\nend\n",
+                    size
+                );
+            }
+            Activations::ReLU => {
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = ({id}[i] + abs({id}[i])) / 2;\nend\n", size);
+            }
+        }
+
+        return ret;
+    }
 }
 
 pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -> String {
@@ -105,9 +131,6 @@ pub fn mosfet_template(header: &str, analog_behavior: &str) -> String {
 
     ret += "// define analog behavior\n";
     ret += "\tanalog begin\n";
-    // ret += "\tVgs = V(b_gs);\n";
-    // ret += "\tVds = V(b_ds);\n";
-    // ret += "\tVgd = V(b_gd);\n";
     ret += analog_behavior;
     ret += "\tend // analog block\n";
 

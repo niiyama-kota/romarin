@@ -244,3 +244,86 @@ fn test_pinn() {
     use crate::transistor_model::PiNN;
     let _ = PiNN::run();
 }
+
+#[test]
+fn test_pinn_by_graph() {
+    use crate::components::graph::Graph;
+    use crate::components::utils::Activations;
+    use crate::components::{edge::*, node::*};
+
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
+    let dataset = min_max_scaling(&dataset);
+    let x = Tensor::stack(
+        &[
+            Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
+        ],
+        1,
+    )
+    .to_kind(Kind::Float)
+    .reshape([-1, 2]);
+    let y = Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
+        .to_kind(Kind::Float)
+        .reshape([-1, 1]);
+
+    // let test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
+    // let test_dataset = min_max_scaling(&test_dataset);
+    // let x_test = Tensor::stack(
+    //     &[
+    //         Tensor::from_slice(test_dataset.get("Vds").unwrap().as_slice()),
+    //         Tensor::from_slice(test_dataset.get("Vgs").unwrap().as_slice()),
+    //     ],
+    //     1,
+    // )
+    // .to_kind(Kind::Float);
+    // let y_test = Tensor::from_slice(test_dataset.get("Ids").unwrap().as_slice())
+    //     .to_kind(Kind::Float)
+    //     .reshape([-1, 1]);
+
+    let mut pinn = Graph::new();
+    let input_vd = NodeType::Input(InputNode::new(1, Activations::Id));
+    let input_vg = NodeType::Input(InputNode::new(1, Activations::Id));
+    let vd_sub1 = NodeType::Hidden(HiddenNode::new(2, Activations::Tanh));
+    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
+    let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh));
+    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
+    let output = NodeType::Output(OutputNode::new(1, Activations::Id));
+    let id2vd1 = nn::linear(pinn.vs.root(), 1, 2, Default::default());
+    let vd12vd2 = nn::linear(pinn.vs.root(), 2, 1, Default::default());
+    let vd22o = nn::linear(pinn.vs.root(), 1, 1, Default::default());
+    let ig2vg1 = nn::linear(pinn.vs.root(), 1, 3, Default::default());
+    let vg12vg2 = nn::linear(pinn.vs.root(), 3, 1, Default::default());
+    let vg22o = nn::linear(pinn.vs.root(), 1, 1, Default::default());
+    let vd12vg1 = nn::linear(pinn.vs.root(), 2, 3, Default::default());
+    let vd22vg2 = nn::linear(pinn.vs.root(), 1, 1, Default::default());
+
+    pinn.add_edge(Linear::new(input_vd, vd_sub1, id2vd1));
+    pinn.add_edge(Linear::new(input_vg, vg_sub1, ig2vg1));
+    pinn.add_edge(Linear::new(vd_sub1, vg_sub1, vd12vg1));
+    pinn.add_edge(Linear::new(vd_sub1, vd_sub2, vd12vd2));
+    pinn.add_edge(Linear::new(vg_sub1, vg_sub2, vg12vg2));
+    pinn.add_edge(Linear::new(vd_sub2, vg_sub2, vd22vg2));
+    pinn.add_edge(Linear::new(vd_sub2, output, vd22o));
+    pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
+
+    let _ = pinn.train(&x, &y, 10000, 1e-3);
+    println!("{}", pinn.gen_verilog("// INPUT", "//OUTPUT"));
+}
+
+#[test]
+fn test_split_tensor() {
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
+    let dataset = min_max_scaling(&dataset);
+    let x = Tensor::stack(
+        &[
+            Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+            Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
+        ],
+        1,
+    )
+    .to_kind(Kind::Float)
+    .reshape([-1, 2]);
+    let vgs_vds = x.split_sizes([1,1], 1);
+    x.print();
+    vgs_vds[1].print();
+}
