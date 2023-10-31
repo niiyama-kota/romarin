@@ -119,14 +119,10 @@ impl Graph {
         for e in self.edge_list.iter() {
             let from = e.from();
             if let Some(_) = node_variables.get(&from) {
+                // FIXME: we should return some Error
             } else {
                 let var = fresh();
-                content += &format!(
-                    "real n{}[0:{}] = {};\n",
-                    var,
-                    from.size() - 1,
-                    array_init(from.size(), 1.0)
-                );
+                content += &from.export_init(&format!("n{var}"));
                 node_variables.insert(from, var);
             }
 
@@ -134,24 +130,11 @@ impl Graph {
             if let Some(_) = node_variables.get(&to) {
             } else {
                 let var = fresh();
-                content += &format!(
-                    "real n{}[0:{}] = {};\n",
-                    var,
-                    to.size() - 1,
-                    array_init(to.size(), 1.0)
-                );
+                content += &to.export_init(&format!("n{var}"));
                 node_variables.insert(to, var);
             }
         }
 
-        // content += &format!("real n0[0:1] = {{V(b_DS), V(b_GS)}}");
-        content += input;
-        content += &format!(
-            "n{} = {{V(b_ds), V(b_gs)}};\n",
-            *node_variables
-                .get(&self.edge_list.first().unwrap().from())
-                .unwrap()
-        );
         for e in self.edge_list.iter() {
             let from = e.from();
             let to = e.to();
@@ -160,12 +143,13 @@ impl Graph {
             let &to_var = node_variables.get(&to).unwrap();
             let &e_var = edge_variables.get(&edge).unwrap();
             content += &from.export_forward(&from_var.to_string());
-            content += &format!(
-                "`MATMUL(l{e_var}_ws, n{from_var}, n{to_var}, {}, 1, {});\n",
-                to.size(),
-                from.size()
-            );
-            content += &format!("`MATADD(n{to_var}, l{e_var}_bs, {}, 1);\n", to.size());
+            content += &e.export_forward(&format!("l{e_var}"));
+            // content += &format!(
+            //     "`MATMUL(l{e_var}_ws, n{from_var}, n{to_var}, {}, 1, {});\n",
+            //     to.size(),
+            //     from.size()
+            // );
+            // content += &format!("`MATADD(n{to_var}, l{e_var}_bs, {}, 1);\n", to.size());
         }
 
         let last_node = self.edge_list.last().unwrap().to();

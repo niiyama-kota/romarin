@@ -90,8 +90,21 @@ impl InputNode {
         }
     }
 
-    pub fn export_input(&self) -> String {
-        todo!()
+    pub fn export_input(&self, input_var: Vec<&str>) -> String {
+        assert_eq!(self.size(), input_var.len());
+        return format!(
+            "{} = {{{}}}",
+            self.name(),
+            &input_var
+                .into_iter()
+                .fold("".to_owned(), |acc, x| -> String {
+                    if acc == "" {
+                        acc + x
+                    } else {
+                        acc + ", " + x
+                    }
+                })
+        );
     }
 
     pub fn name(&self) -> &str {

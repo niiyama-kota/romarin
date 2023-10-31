@@ -29,7 +29,7 @@ impl Linear {
 
 impl Module for Linear {
     fn forward(&self, xs: &tch::Tensor) -> tch::Tensor {
-        return self.forward(xs);
+        return self.trans.forward(xs);
     }
 }
 

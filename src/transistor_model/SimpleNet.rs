@@ -7,11 +7,11 @@ use std::path::Path;
 use tch::nn::ModuleT;
 use tch::{nn, nn::OptimizerConfig, Device, Kind, Tensor};
 
-use crate::loader::{self, min_max_scaling, DataSet};
 use crate::components::utils::{
     self, array_init, declare_activation, declare_matrix_add, declare_matrix_mul, declare_tensor,
     mosfet_template,
 };
+use crate::loader::{self, min_max_scaling, DataSet};
 
 const NEURON_NUM: i64 = 100;
 const EPOCH: i64 = 100000;

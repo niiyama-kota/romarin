@@ -323,7 +323,7 @@ fn test_split_tensor() {
     )
     .to_kind(Kind::Float)
     .reshape([-1, 2]);
-    let vgs_vds = x.split_sizes([1,1], 1);
+    let vgs_vds = x.split_sizes([1, 1], 1);
     x.print();
     vgs_vds[1].print();
 }
