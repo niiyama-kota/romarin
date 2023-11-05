@@ -1,6 +1,7 @@
 use crate::loader::{self, min_max_scaling, DataSet};
 use anyhow::Result;
 use plotters::prelude::*;
+use std::collections::HashMap;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -253,15 +254,24 @@ fn test_pinn_by_graph() {
 
     let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
     let dataset = min_max_scaling(&dataset);
-    let x = Tensor::stack(
-        &[
-            Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
-            Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
-        ],
-        1,
-    )
-    .to_kind(Kind::Float)
-    .reshape([-1, 2]);
+    // let x = Tensor::stack(
+    //     &[
+    //         Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+    //         Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
+    //     ],
+    //     1,
+    // )
+    // .to_kind(Kind::Float)
+    // .reshape([-1, 2]);
+    let mut xs = HashMap::new();
+    xs.insert(
+        "vd_input",
+        Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+    );
+    xs.insert(
+        "vg_input",
+        Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
+    );
     let y = Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
@@ -281,8 +291,8 @@ fn test_pinn_by_graph() {
     //     .reshape([-1, 1]);
 
     let mut pinn = Graph::new();
-    let input_vd = NodeType::Input(InputNode::new(1, Activations::Id));
-    let input_vg = NodeType::Input(InputNode::new(1, Activations::Id));
+    let input_vd = NodeType::Input(InputNode::new(1, Activations::Id, "vd_input", &["V(b_ds)"]));
+    let input_vg = NodeType::Input(InputNode::new(1, Activations::Id, "vg_input", &["V(b_gs)"]));
     let vd_sub1 = NodeType::Hidden(HiddenNode::new(2, Activations::Tanh));
     let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
     let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh));
@@ -306,7 +316,7 @@ fn test_pinn_by_graph() {
     pinn.add_edge(Linear::new(vd_sub2, output, vd22o));
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
-    let _ = pinn.train(&x, &y, 10000, 1e-3);
+    let _ = pinn.train(&xs, &y, 10000, 1e-3);
     println!("{}", pinn.gen_verilog("// INPUT", "//OUTPUT"));
 }
 

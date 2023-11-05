@@ -29,17 +29,20 @@ impl Graph {
     pub fn train(
         &self,
         xs: &HashMap<&str, Tensor>,
-        y: Vec<Tensor>,
+        y: &HashMap<&str, Tensor>,
         epoch: usize,
         lr: f64,
     ) -> Result<()> {
-        let y = &Tensor::stack(y.as_slice(), 1);
         let mut opt = nn::AdamW::default().build(&self.vs, lr)?;
         let mut losses = Vec::<f64>::new();
 
         for _epoch in 1..=epoch {
             opt.zero_grad();
-            let loss = self.forward(xs).mse_loss(y, tch::Reduction::Mean);
+            let loss = self
+                .forward(xs)
+                .get("")
+                .unwrap()
+                .mse_loss(y.get("").unwrap(), tch::Reduction::Mean);
             loss.print();
             opt.backward_step(&loss);
             losses.push(loss.double_value(&[]));
@@ -53,7 +56,7 @@ impl Graph {
         self.edge_list.push(e);
     }
 
-    pub fn forward(&self, inputs: &HashMap<&str, Tensor>) -> Tensor {
+    pub fn forward(&self, inputs: &HashMap<&str, Tensor>) -> HashMap<&str, Tensor> {
         let mut mp = HashMap::<NodeType, Tensor>::new();
 
         for e in self.edge_list.iter() {
@@ -63,9 +66,7 @@ impl Graph {
             let v = match mp.get(from) {
                 Some(v) => v.copy(),
                 None => match from {
-                    NodeType::Input(n) => {
-                        return inputs.get(n.name()).unwrap().copy();
-                    }
+                    NodeType::Input(n) => inputs.get(n.name()).unwrap().copy(),
                     NodeType::Hidden(_) => {
                         assert!(false, "Node Type error");
                         // FIXME
@@ -183,8 +184,9 @@ fn test_add_edge() {
     use tch::Kind;
 
     let mut g = Graph::new();
+    let dummy_input = &["Dummy"];
     g.add_edge(Linear::new(
-        NodeType::Input(InputNode::new(2, Activations::Id, "Vs")),
+        NodeType::Input(InputNode::new(2, Activations::Id, "Vs", dummy_input)),
         NodeType::Hidden(HiddenNode::new(5, Activations::ReLU)),
         nn::linear(g.vs.root(), 2, 5, Default::default()),
     ));

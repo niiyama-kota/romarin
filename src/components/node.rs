@@ -23,6 +23,7 @@ pub struct InputNode {
     size: usize,
     act: Activations,
     name: &'static str,
+    verilog_inputs: &'static [&'static str],
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
@@ -35,6 +36,8 @@ pub struct HiddenNode {
 pub struct OutputNode {
     size: usize,
     act: Activations,
+    name: &'static str,
+    verilog_outputs: &'static [&'static str],
 }
 
 impl Module for NodeType {
@@ -82,11 +85,17 @@ impl Node for NodeType {
 }
 
 impl InputNode {
-    pub fn new(_size: usize, _act: Activations, _name: &'static str) -> Self {
+    pub fn new(
+        _size: usize,
+        _act: Activations,
+        _name: &'static str,
+        _verilog_inputs: &'static [&str],
+    ) -> Self {
         InputNode {
             size: _size,
             act: _act,
             name: _name,
+            verilog_inputs: _verilog_inputs,
         }
     }
 
@@ -200,10 +209,17 @@ impl Node for HiddenNode {
 }
 
 impl OutputNode {
-    pub fn new(_size: usize, _act: Activations) -> Self {
+    pub fn new(
+        _size: usize,
+        _act: Activations,
+        _name: &'static str,
+        _verilog_outputs: &'static [&str],
+    ) -> Self {
         OutputNode {
             size: _size,
             act: _act,
+            name: _name,
+            verilog_outputs: _verilog_outputs,
         }
     }
 
