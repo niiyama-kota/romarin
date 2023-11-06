@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
 use tch::{nn::Module, Tensor};
 
 use super::utils::{array_init, Activations};
@@ -140,7 +140,7 @@ impl Node for InputNode {
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
         ret += &format!(
-            "real {}[0:{}] = {};",
+            "real n{}[0:{}] = {};\n",
             id,
             self.size(),
             array_init(self.size(), 1.0) // initialize identity of node's op
@@ -188,7 +188,7 @@ impl Node for HiddenNode {
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
         ret += &format!(
-            "real {}[0:{}] = {};",
+            "real {}[0:{}] = {};\n",
             id,
             self.size(),
             array_init(self.size(), 1.0) // initialize identity of node's op
@@ -223,8 +223,21 @@ impl OutputNode {
         }
     }
 
-    pub fn export_output(&self) -> String {
-        todo!()
+    pub fn export_output(&self, output_mp: &HashMap<String, Tensor>) -> String {
+        let mut ret = "".to_owned();
+        for out in self.verilog_outputs {
+            ret += &format!(
+                "{} <+ {};\n",
+                out,
+                output_mp.get(self.name()).unwrap().double_value(&[0])
+            );
+        }
+
+        return ret;
+    }
+
+    pub fn name(&self) -> &str {
+        return self.name;
     }
 }
 
@@ -247,7 +260,7 @@ impl Node for OutputNode {
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
         ret += &format!(
-            "real {}[0:{}] = {};",
+            "real {}[0:{}] = {};\n",
             id,
             self.size(),
             array_init(self.size(), 1.0) // initialize identity of node's op
@@ -265,4 +278,10 @@ impl Node for OutputNode {
     fn get_fun(&self) -> Activations {
         return self.act;
     }
+}
+
+#[test]
+fn test_double_val() {
+    let t = Tensor::from_slice(&[5]);
+    println!("{:?}", t.size());
 }

@@ -14,19 +14,19 @@ impl Activations {
         let mut ret = "".to_owned();
         match self {
             Activations::Id => {
-                ret += &format!("/// applying Id to {id} ///\n");
+                ret += &format!("/// applying Id to n{id} ///\n");
             }
             Activations::Sigmoid => {
-                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = {id}[i] = 1 / (1 + exp(-{id}[i]));\nend\n", size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\tn{id}[i] = {id}[i] = 1 / (1 + exp(-n{id}[i]));\nend\n", size);
             }
             Activations::Tanh => {
                 ret += &format!(
-                    "for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = tanh({id}[i]);\nend\n",
+                    "for(i = 0; i < {}; i = i+1) begin\n\tn{id}[i] = tanh(n{id}[i]);\nend\n",
                     size
                 );
             }
             Activations::ReLU => {
-                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = ({id}[i] + abs({id}[i])) / 2;\nend\n", size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\tn{id}[i] = (n{id}[i] + abs(n{id}[i])) / 2;\nend\n", size);
             }
         }
 

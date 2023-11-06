@@ -35,7 +35,16 @@ impl Module for Linear {
 
 impl Edge for Linear {
     fn export_forward(&self, id: &str) -> String {
-        todo!()
+        let mut ret = format!(
+            "`MATMUL({}, {}, l{}_ws, {}, {}, {});\n",
+            "from.var()", "to.var()", id, "to.size()", "1", "from.size()"
+        );
+        ret += &format!(
+            "`MATADD(n{}, l{}_bs, {}, 1);\n",
+            "to.var()", id, "to.size()"
+        );
+
+        return ret;
     }
     fn export_params(&self, id: &str) -> String {
         return declare_linear(&self.trans, id);

@@ -254,27 +254,26 @@ fn test_pinn_by_graph() {
 
     let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
     let dataset = min_max_scaling(&dataset);
-    // let x = Tensor::stack(
-    //     &[
-    //         Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
-    //         Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
-    //     ],
-    //     1,
-    // )
-    // .to_kind(Kind::Float)
-    // .reshape([-1, 2]);
     let mut xs = HashMap::new();
     xs.insert(
-        "vd_input",
-        Tensor::from_slice(dataset.get("Vds").unwrap().as_slice()),
+        "vd_input".to_owned(),
+        Tensor::from_slice(dataset.get("Vds").unwrap().as_slice())
+            .to_kind(Kind::Float)
+            .reshape([-1, 1]),
     );
     xs.insert(
-        "vg_input",
-        Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice()),
+        "vg_input".to_owned(),
+        Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice())
+            .to_kind(Kind::Float)
+            .reshape([-1, 1]),
     );
-    let y = Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
-        .to_kind(Kind::Float)
-        .reshape([-1, 1]);
+    let mut y = HashMap::new();
+    y.insert(
+        "ids_output".to_owned(),
+        Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
+            .to_kind(Kind::Float)
+            .reshape([-1, 1]),
+    );
 
     // let test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
     // let test_dataset = min_max_scaling(&test_dataset);
@@ -297,7 +296,12 @@ fn test_pinn_by_graph() {
     let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
     let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh));
     let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
-    let output = NodeType::Output(OutputNode::new(1, Activations::Id));
+    let output = NodeType::Output(OutputNode::new(
+        1,
+        Activations::Id,
+        "ids_output",
+        &["I(b_ds)"],
+    ));
     let id2vd1 = nn::linear(pinn.vs.root(), 1, 2, Default::default());
     let vd12vd2 = nn::linear(pinn.vs.root(), 2, 1, Default::default());
     let vd22o = nn::linear(pinn.vs.root(), 1, 1, Default::default());
@@ -316,7 +320,7 @@ fn test_pinn_by_graph() {
     pinn.add_edge(Linear::new(vd_sub2, output, vd22o));
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
-    let _ = pinn.train(&xs, &y, 10000, 1e-3);
+    let _ = pinn.train(&xs, &y, 100, 1e-3);
     println!("{}", pinn.gen_verilog("// INPUT", "//OUTPUT"));
 }
 

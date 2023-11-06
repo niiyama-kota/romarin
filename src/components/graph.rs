@@ -28,25 +28,26 @@ impl Graph {
 
     pub fn train(
         &self,
-        xs: &HashMap<&str, Tensor>,
-        y: &HashMap<&str, Tensor>,
+        xs: &HashMap<String, Tensor>,
+        y: &HashMap<String, Tensor>,
         epoch: usize,
         lr: f64,
     ) -> Result<()> {
         let mut opt = nn::AdamW::default().build(&self.vs, lr)?;
-        let mut losses = Vec::<f64>::new();
 
         for _epoch in 1..=epoch {
-            opt.zero_grad();
-            let loss = self
-                .forward(xs)
-                .get("")
-                .unwrap()
-                .mse_loss(y.get("").unwrap(), tch::Reduction::Mean);
-            loss.print();
-            opt.backward_step(&loss);
-            losses.push(loss.double_value(&[]));
             println!("epoch {}", _epoch);
+            opt.zero_grad();
+            let output_mp = self.forward(xs);
+            for output_name in y.keys() {
+                let loss = output_mp
+                    .get(output_name)
+                    .unwrap()
+                    .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Mean);
+                println!("loss for {output_name}:");
+                loss.print();
+                opt.backward_step(&loss);
+            }
         }
 
         Ok(())
@@ -56,41 +57,82 @@ impl Graph {
         self.edge_list.push(e);
     }
 
-    pub fn forward(&self, inputs: &HashMap<&str, Tensor>) -> HashMap<&str, Tensor> {
-        let mut mp = HashMap::<NodeType, Tensor>::new();
+    pub fn forward(&self, inputs: &HashMap<String, Tensor>) -> HashMap<String, Tensor> {
+        let mut hidden_mp = HashMap::<NodeType, Tensor>::new();
+        let mut output_mp = HashMap::<NodeType, Tensor>::new();
 
         for e in self.edge_list.iter() {
             let from = &e.from();
             let to = &e.to();
             let t = &e.get_fun();
-            let v = match mp.get(from) {
-                Some(v) => v.copy(),
-                None => match from {
-                    NodeType::Input(n) => inputs.get(n.name()).unwrap().copy(),
-                    NodeType::Hidden(_) => {
-                        assert!(false, "Node Type error");
-                        // FIXME
-                        panic!()
+            let v = match from {
+                NodeType::Input(n) => inputs.get(n.name()).unwrap(),
+                NodeType::Hidden(_) => {
+                    match hidden_mp.get(from) {
+                        Some(tensor) => tensor,
+                        None => {
+                            // FIXME: should return errors
+                            panic!()
+                        }
                     }
-                    NodeType::Output(_) => {
-                        assert!(false, "Node Type error");
-                        // FIXME
-                        panic!()
-                    }
-                },
+                }
+                NodeType::Output(_) => {
+                    // FIXME: should return errors
+                    panic!()
+                }
             };
-
-            let term = t.forward(&from.forward(&v));
-            if let Some(acc) = mp.get(to) {
-                let acc = acc.copy() * term;
-                mp.insert(*to, acc);
-            } else {
-                mp.insert(*to, term);
+            // apply activation function at from Node
+            let v = from.forward(v);
+            // apply transform function of edges
+            let v = t.forward(&v);
+            match to {
+                NodeType::Input(_) => {
+                    // FIXME: should return errors
+                    panic!()
+                }
+                NodeType::Hidden(_) => {
+                    match hidden_mp.get(to) {
+                        Some(tensor) => {
+                            // FIXME: should support not only product op but also general Monoid op
+                            hidden_mp.insert(*to, tensor * v);
+                        }
+                        None => {
+                            hidden_mp.insert(*to, v);
+                        }
+                    }
+                }
+                NodeType::Output(_) => {
+                    match output_mp.get(to) {
+                        Some(tensor) => {
+                            // FIXME: should support not only product op but also general Monoid op
+                            output_mp.insert(*to, tensor * v);
+                        }
+                        None => {
+                            output_mp.insert(*to, v);
+                        }
+                    }
+                }
             }
         }
 
-        let output_node = self.edge_list.last().unwrap().to();
-        return output_node.forward(mp.get(&output_node).unwrap());
+        let mut ret = HashMap::<String, Tensor>::new();
+        for k in output_mp.keys() {
+            match k {
+                NodeType::Input(_) => {
+                    // FIXME: should return errors
+                    panic!()
+                }
+                NodeType::Hidden(_) => {
+                    // FIXME: should return errors
+                    panic!()
+                }
+                NodeType::Output(n) => {
+                    ret.insert(n.name().to_string(), n.forward(output_mp.get(k).unwrap()));
+                }
+            }
+        }
+
+        return ret;
     }
 
     pub fn gen_verilog(&self, input: &str, output: &str) -> String {
@@ -110,7 +152,7 @@ impl Graph {
         header += "\n";
         header += "module mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, term_D, term_S;\n\tbranch (term_G, term_S) b_gs;\n\tbranch (term_G, term_D) b_gd;\n\tbranch (term_D, term_S) b_ds;\n\n\tinteger i, j, k;\n\treal tmp = 0.0;\n\n";
 
-        let mut content = "\t".to_owned();
+        let mut content = "analog begin\n".to_owned();
 
         for e in self.edge_list.iter() {
             let evar = fresh();
@@ -120,10 +162,10 @@ impl Graph {
         for e in self.edge_list.iter() {
             let from = e.from();
             if let Some(_) = node_variables.get(&from) {
-                // FIXME: we should return some Error
+                // FIXME: should return some Error
             } else {
                 let var = fresh();
-                content += &from.export_init(&format!("n{var}"));
+                content += &from.export_init(&format!("{var}"));
                 node_variables.insert(from, var);
             }
 
@@ -131,7 +173,7 @@ impl Graph {
             if let Some(_) = node_variables.get(&to) {
             } else {
                 let var = fresh();
-                content += &to.export_init(&format!("n{var}"));
+                content += &to.export_init(&format!("{var}"));
                 node_variables.insert(to, var);
             }
         }
@@ -144,22 +186,8 @@ impl Graph {
             let &to_var = node_variables.get(&to).unwrap();
             let &e_var = edge_variables.get(&edge).unwrap();
             content += &from.export_forward(&from_var.to_string());
-            content += &e.export_forward(&format!("l{e_var}"));
-            // content += &format!(
-            //     "`MATMUL(l{e_var}_ws, n{from_var}, n{to_var}, {}, 1, {});\n",
-            //     to.size(),
-            //     from.size()
-            // );
-            // content += &format!("`MATADD(n{to_var}, l{e_var}_bs, {}, 1);\n", to.size());
+            content += &e.export_forward(&format!("{e_var}"));
         }
-
-        let last_node = self.edge_list.last().unwrap().to();
-        content +=
-            &last_node.export_forward(&(*node_variables.get(&last_node).unwrap().to_string()));
-        content += &format!(
-            "{output}n{}[0];\n",
-            *node_variables.get(&last_node).unwrap()
-        );
 
         let footer = "\nend //end analog block\nendmodule\n";
 
@@ -210,9 +238,12 @@ fn test_add_edge() {
     )
     .to_kind(Kind::Float);
 
-    let mut inputs = HashMap::<&str, Tensor>::new();
-    inputs.insert("Vs", input);
-    g.forward(&inputs).print();
+    let mut inputs = HashMap::<String, Tensor>::new();
+    inputs.insert("Vs".to_owned(), input);
+    for outs in g.forward(&inputs) {
+        println!("{}:", outs.0);
+        outs.1.print();
+    }
 }
 
 // #[test]
