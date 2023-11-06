@@ -109,22 +109,13 @@ impl InputNode {
         }
     }
 
-    pub fn export_input(&self, input_var: Vec<&str>) -> String {
-        assert_eq!(self.size(), input_var.len());
-        return format!(
-            "real {}[0:{}] = {{{}}};\n",
-            self.name(),
-            self.size() - 1,
-            &input_var
-                .into_iter()
-                .fold("".to_owned(), |acc, x| -> String {
-                    if acc == "" {
-                        acc + x
-                    } else {
-                        acc + ", " + x
-                    }
-                })
-        );
+    pub fn export_input(&self, input_var: &str) -> String {
+        let mut ret = "".to_owned();
+        for (idx, input) in self.verilog_inputs().iter().enumerate() {
+            ret += &format!("{}[{}] = ({});\n", input_var, idx, input);
+        }
+
+        return ret;
     }
 
     pub fn name(&self) -> &str {
@@ -155,9 +146,9 @@ impl Node for InputNode {
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
         ret += &format!(
-            "real n{}[0:{}] = {};\n",
+            "real {}[0:{}] = {};\n",
             id,
-            self.size(),
+            self.size() - 1,
             array_init(self.size(), 1.0) // initialize identity of node's op
         );
 
@@ -210,7 +201,7 @@ impl Node for HiddenNode {
         ret += &format!(
             "real {}[0:{}] = {};\n",
             id,
-            self.size(),
+            self.size() - 1,
             array_init(self.size(), 1.0) // initialize identity of node's op
         );
 
@@ -286,7 +277,7 @@ impl Node for OutputNode {
         ret += &format!(
             "real {}[0:{}] = {};\n",
             id,
-            self.size(),
+            self.size() - 1,
             array_init(self.size(), 1.0) // initialize identity of node's op
         );
 

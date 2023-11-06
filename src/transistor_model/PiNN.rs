@@ -252,14 +252,7 @@ fn test_pinn_by_graph() {
     use crate::components::utils::Activations;
     use crate::components::{edge::*, node::*};
 
-    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
-    // let dataset = min_max_scaling(&dataset);
-    // let vds_min = dataset.minimums.get("vds").unwrap();
-    // let vgs_min = dataset.minimums.get("vgs").unwrap();
-    // let ids_min = dataset.minimums.get("ids").unwrap();
-    // let vds_max = dataset.maximums.get("vds").unwrap();
-    // let vgs_max = dataset.maximums.get("vgs").unwrap();
-    // let ids_max = dataset.maximums.get("ids").unwrap();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
 
     let mut xs = HashMap::new();
     xs.insert(
@@ -287,8 +280,8 @@ fn test_pinn_by_graph() {
     let input_vg = NodeType::Input(InputNode::new(1, Activations::Id, "vg_input", &["V(b_gs)"]));
     let vd_sub1 = NodeType::Hidden(HiddenNode::new(2, Activations::Tanh, "vd_sub1"));
     let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vd_sub2"));
-    let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh, "vg_sub1"));
-    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vg_sub2"));
+    let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Sigmoid, "vg_sub1"));
+    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Sigmoid, "vg_sub2"));
     let output = NodeType::Output(OutputNode::new(
         1,
         Activations::Id,
@@ -387,6 +380,29 @@ fn test_pinn_by_graph() {
 
     let _ = pinn.train(&xs, &y, 10000, 1e-3);
     println!("{}", pinn.gen_verilog());
+
+    let output = pinn
+        .forward(&xs)
+        .get("ids_output")
+        .unwrap()
+        .copy()
+        .reshape([-1, 1]);
+    let mut ids_pred: Vec<f32> = vec![0.0; output.numel()];
+    output.copy_data(&mut ids_pred, output.numel());
+
+    let data_output_path = Path::new("./data");
+    create_dir_all(&data_output_path);
+    let mut w = BufWriter::new(File::create(data_output_path.join("test_data.csv")).unwrap());
+
+    writeln!(w, "VGS,VDS,IDS,IDS_PRED");
+    for (&vgs, (&vds, (&ids_t, &ids_p))) in dataset.vgs.iter().zip(
+        dataset
+            .vds
+            .iter()
+            .zip(dataset.ids.iter().zip(ids_pred.iter())),
+    ) {
+        writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p);
+    }
 }
 
 #[test]

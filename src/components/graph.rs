@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::components::node::*;
 use crate::components::utils::{
@@ -94,6 +94,7 @@ impl Graph {
                     match hidden_mp.get(to) {
                         Some(tensor) => {
                             // FIXME: should support not only product op but also general Monoid op
+                            assert_eq!(tensor.size(), v.size());
                             hidden_mp.insert(*to, tensor * v);
                         }
                         None => {
@@ -105,6 +106,7 @@ impl Graph {
                     match output_mp.get(to) {
                         Some(tensor) => {
                             // FIXME: should support not only product op but also general Monoid op
+                            assert_eq!(tensor.size(), v.size());
                             output_mp.insert(*to, tensor * v);
                         }
                         None => {
@@ -152,7 +154,7 @@ impl Graph {
         header += "\n";
         header += "module mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, term_D, term_S;\n\tbranch (term_G, term_S) b_gs;\n\tbranch (term_G, term_D) b_gd;\n\tbranch (term_D, term_S) b_ds;\n\n\tinteger i, j, k;\n\treal tmp = 0.0;\n\n";
 
-        let mut content = "analog begin\n".to_owned();
+        let mut content = "\t".to_owned();
 
         // initialize variables for Edge transformation
         for e in self.edge_list.iter() {
@@ -169,7 +171,7 @@ impl Graph {
                 let var = fresh();
                 match from {
                     NodeType::Input(n) => {
-                        content += &n.export_input(n.verilog_inputs().to_vec());
+                        content += &n.export_init(n.name());
                     }
                     NodeType::Hidden(n) => {
                         content += &n.export_init(&format!("{}", n.name()));
@@ -204,23 +206,44 @@ impl Graph {
         }
 
         // implement forwarding process
+        let mut node_activation = HashSet::<NodeType>::new();
+        content += "analog begin\n";
         for e in self.edge_list.iter() {
             let from = e.from();
             let to = e.to();
             let edge = (from, to);
             let &e_var = edge_variables.get(&edge).unwrap();
             // if already activated from Node values, this operation should be removeds
-            content += &from.export_forward();
+            match from {
+                NodeType::Input(n) => {
+                    content += &n.export_input(n.name());
+                }
+                _ => {}
+            }
+            if !node_activation.contains(&from) {
+                content += &from.export_forward();
+                node_activation.insert(from);
+            } else {
+                content += &format!("// already activated this node: {}\n", from.name());
+            }
             content += &e.export_forward(&format!("{e_var}"));
         }
 
         // implement assign output process
+        let mut node_output = HashSet::<NodeType>::new();
         for e in self.edge_list.iter() {
             let to = e.to();
             match to {
                 NodeType::Output(n) => {
                     // FIXME!: if already assign output, should do nothing
-                    content += &n.export_output();
+                    if !node_output.contains(&to) {
+                        content += &n.export_forward();
+                        content += &n.export_output();
+                        node_output.insert(to);
+                    } else {
+                        content +=
+                            &format!("// already assign output for this node: {}\n", to.name());
+                    }
                 }
                 _ => {
                     // Do Nothing

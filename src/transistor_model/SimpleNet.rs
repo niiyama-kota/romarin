@@ -14,7 +14,7 @@ use crate::components::utils::{
 use crate::loader::{self, min_max_scaling, DataSet};
 
 const NEURON_NUM: i64 = 100;
-const EPOCH: i64 = 100000;
+const EPOCH: i64 = 10000;
 
 #[derive(Debug)]
 struct SimpleNet {

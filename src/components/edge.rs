@@ -39,10 +39,10 @@ impl Module for Linear {
 impl Edge for Linear {
     fn export_forward(&self, id: &str) -> String {
         let mut ret = format!(
-            "`MATMUL({}, {}, l{}_ws, {}, {}, {});\n",
+            "`MATMUL(l{}_ws, {}, {}, {}, {}, {});\n",
+            id,
             self.from.name(),
             self.to.name(),
-            id,
             self.to.size(),
             "1",
             self.from.size()
@@ -50,7 +50,7 @@ impl Edge for Linear {
         match self.trans.bs {
             Some(_) => {
                 ret += &format!(
-                    "`MATADD(n{}, l{}_bs, {}, 1);\n",
+                    "`MATADD({}, l{}_bs, {}, 1);\n",
                     self.to.name(),
                     id,
                     self.to.size()
