@@ -253,63 +253,128 @@ fn test_pinn_by_graph() {
     use crate::components::{edge::*, node::*};
 
     let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
-    let dataset = min_max_scaling(&dataset);
+    // let dataset = min_max_scaling(&dataset);
+    // let vds_min = dataset.minimums.get("vds").unwrap();
+    // let vgs_min = dataset.minimums.get("vgs").unwrap();
+    // let ids_min = dataset.minimums.get("ids").unwrap();
+    // let vds_max = dataset.maximums.get("vds").unwrap();
+    // let vgs_max = dataset.maximums.get("vgs").unwrap();
+    // let ids_max = dataset.maximums.get("ids").unwrap();
+
     let mut xs = HashMap::new();
     xs.insert(
         "vd_input".to_owned(),
-        Tensor::from_slice(dataset.get("Vds").unwrap().as_slice())
+        Tensor::from_slice(dataset.vds.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1]),
     );
     xs.insert(
         "vg_input".to_owned(),
-        Tensor::from_slice(dataset.get("Vgs").unwrap().as_slice())
+        Tensor::from_slice(dataset.vgs.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1]),
     );
     let mut y = HashMap::new();
     y.insert(
         "ids_output".to_owned(),
-        Tensor::from_slice(dataset.get("Ids").unwrap().as_slice())
+        Tensor::from_slice(dataset.ids.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1]),
     );
 
-    // let test_dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
-    // let test_dataset = min_max_scaling(&test_dataset);
-    // let x_test = Tensor::stack(
-    //     &[
-    //         Tensor::from_slice(test_dataset.get("Vds").unwrap().as_slice()),
-    //         Tensor::from_slice(test_dataset.get("Vgs").unwrap().as_slice()),
-    //     ],
-    //     1,
-    // )
-    // .to_kind(Kind::Float);
-    // let y_test = Tensor::from_slice(test_dataset.get("Ids").unwrap().as_slice())
-    //     .to_kind(Kind::Float)
-    //     .reshape([-1, 1]);
-
     let mut pinn = Graph::new();
     let input_vd = NodeType::Input(InputNode::new(1, Activations::Id, "vd_input", &["V(b_ds)"]));
     let input_vg = NodeType::Input(InputNode::new(1, Activations::Id, "vg_input", &["V(b_gs)"]));
-    let vd_sub1 = NodeType::Hidden(HiddenNode::new(2, Activations::Tanh));
-    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
-    let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh));
-    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh));
+    let vd_sub1 = NodeType::Hidden(HiddenNode::new(2, Activations::Tanh, "vd_sub1"));
+    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vd_sub2"));
+    let vg_sub1 = NodeType::Hidden(HiddenNode::new(3, Activations::Tanh, "vg_sub1"));
+    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vg_sub2"));
     let output = NodeType::Output(OutputNode::new(
         1,
         Activations::Id,
         "ids_output",
         &["I(b_ds)"],
     ));
-    let id2vd1 = nn::linear(pinn.vs.root(), 1, 2, Default::default());
-    let vd12vd2 = nn::linear(pinn.vs.root(), 2, 1, Default::default());
-    let vd22o = nn::linear(pinn.vs.root(), 1, 1, Default::default());
-    let ig2vg1 = nn::linear(pinn.vs.root(), 1, 3, Default::default());
-    let vg12vg2 = nn::linear(pinn.vs.root(), 3, 1, Default::default());
-    let vg22o = nn::linear(pinn.vs.root(), 1, 1, Default::default());
-    let vd12vg1 = nn::linear(pinn.vs.root(), 2, 3, Default::default());
-    let vd22vg2 = nn::linear(pinn.vs.root(), 1, 1, Default::default());
+    let id2vd1 = nn::linear(
+        pinn.vs.root(),
+        1,
+        2,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vd12vd2 = nn::linear(
+        pinn.vs.root(),
+        2,
+        1,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vd22o = nn::linear(
+        pinn.vs.root(),
+        1,
+        1,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let ig2vg1 = nn::linear(
+        pinn.vs.root(),
+        1,
+        3,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vg12vg2 = nn::linear(
+        pinn.vs.root(),
+        3,
+        1,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vg22o = nn::linear(
+        pinn.vs.root(),
+        1,
+        1,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vd12vg1 = nn::linear(
+        pinn.vs.root(),
+        2,
+        3,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
+    let vd22vg2 = nn::linear(
+        pinn.vs.root(),
+        1,
+        1,
+        LinearConfig {
+            ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
+            bs_init: None,
+            bias: false,
+        },
+    );
 
     pinn.add_edge(Linear::new(input_vd, vd_sub1, id2vd1));
     pinn.add_edge(Linear::new(input_vg, vg_sub1, ig2vg1));
@@ -320,8 +385,8 @@ fn test_pinn_by_graph() {
     pinn.add_edge(Linear::new(vd_sub2, output, vd22o));
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
-    let _ = pinn.train(&xs, &y, 100, 1e-3);
-    println!("{}", pinn.gen_verilog("// INPUT", "//OUTPUT"));
+    let _ = pinn.train(&xs, &y, 10000, 1e-3);
+    println!("{}", pinn.gen_verilog());
 }
 
 #[test]

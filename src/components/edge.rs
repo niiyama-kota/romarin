@@ -1,6 +1,9 @@
 use tch::nn::{self, Module};
 
-use super::{node::NodeType, utils::declare_linear};
+use super::{
+    node::{Node, NodeType},
+    utils::declare_linear,
+};
 
 pub trait Edge: Module {
     fn export_params(&self, id: &str) -> String;
@@ -37,12 +40,24 @@ impl Edge for Linear {
     fn export_forward(&self, id: &str) -> String {
         let mut ret = format!(
             "`MATMUL({}, {}, l{}_ws, {}, {}, {});\n",
-            "from.var()", "to.var()", id, "to.size()", "1", "from.size()"
+            self.from.name(),
+            self.to.name(),
+            id,
+            self.to.size(),
+            "1",
+            self.from.size()
         );
-        ret += &format!(
-            "`MATADD(n{}, l{}_bs, {}, 1);\n",
-            "to.var()", id, "to.size()"
-        );
+        match self.trans.bs {
+            Some(_) => {
+                ret += &format!(
+                    "`MATADD(n{}, l{}_bs, {}, 1);\n",
+                    self.to.name(),
+                    id,
+                    self.to.size()
+                );
+            }
+            None => ret += "// no bias are set\n",
+        }
 
         return ret;
     }

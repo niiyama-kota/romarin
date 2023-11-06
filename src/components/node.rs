@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash};
+use std::hash::Hash;
 use tch::{nn::Module, Tensor};
 
 use super::utils::{array_init, Activations};
@@ -6,8 +6,9 @@ use super::utils::{array_init, Activations};
 pub trait Node: Module + Eq + PartialEq + Hash + Clone + Copy {
     fn size(&self) -> usize;
     fn export_init(&self, id: &str) -> String;
-    fn export_forward(&self, id: &str) -> String;
+    fn export_forward(&self) -> String;
     fn get_fun(&self) -> Activations;
+    fn name(&self) -> &str;
 }
 
 // use Enum Wrapper Pattern
@@ -30,6 +31,7 @@ pub struct InputNode {
 pub struct HiddenNode {
     size: usize,
     act: Activations,
+    name: &'static str,
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
@@ -67,11 +69,11 @@ impl Node for NodeType {
         }
     }
 
-    fn export_forward(&self, id: &str) -> String {
+    fn export_forward(&self) -> String {
         match self {
-            NodeType::Input(n) => n.export_forward(id),
-            NodeType::Hidden(n) => n.export_forward(id),
-            NodeType::Output(n) => n.export_forward(id),
+            NodeType::Input(n) => n.export_forward(),
+            NodeType::Hidden(n) => n.export_forward(),
+            NodeType::Output(n) => n.export_forward(),
         }
     }
 
@@ -80,6 +82,14 @@ impl Node for NodeType {
             NodeType::Input(n) => n.get_fun(),
             NodeType::Hidden(n) => n.get_fun(),
             NodeType::Output(n) => n.get_fun(),
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            NodeType::Input(n) => n.name(),
+            NodeType::Hidden(n) => n.name(),
+            NodeType::Output(n) => n.name(),
         }
     }
 }
@@ -102,8 +112,9 @@ impl InputNode {
     pub fn export_input(&self, input_var: Vec<&str>) -> String {
         assert_eq!(self.size(), input_var.len());
         return format!(
-            "{} = {{{}}}",
+            "real {}[0:{}] = {{{}}};\n",
             self.name(),
+            self.size() - 1,
             &input_var
                 .into_iter()
                 .fold("".to_owned(), |acc, x| -> String {
@@ -118,6 +129,10 @@ impl InputNode {
 
     pub fn name(&self) -> &str {
         return self.name;
+    }
+
+    pub fn verilog_inputs(&self) -> &[&str] {
+        return self.verilog_inputs;
     }
 }
 
@@ -149,8 +164,8 @@ impl Node for InputNode {
         return ret;
     }
 
-    fn export_forward(&self, id: &str) -> String {
-        let ret = self.act.export_apply(&id, self.size());
+    fn export_forward(&self) -> String {
+        let ret = self.act.export_apply(self.name(), self.size());
 
         return ret;
     }
@@ -158,13 +173,18 @@ impl Node for InputNode {
     fn get_fun(&self) -> Activations {
         return self.act;
     }
+
+    fn name(&self) -> &str {
+        return self.name;
+    }
 }
 
 impl HiddenNode {
-    pub fn new(_size: usize, _act: Activations) -> Self {
+    pub fn new(_size: usize, _act: Activations, _name: &'static str) -> Self {
         HiddenNode {
             size: _size,
             act: _act,
+            name: _name,
         }
     }
 }
@@ -197,14 +217,18 @@ impl Node for HiddenNode {
         return ret;
     }
 
-    fn export_forward(&self, id: &str) -> String {
-        let ret = self.act.export_apply(&id, self.size());
+    fn export_forward(&self) -> String {
+        let ret = self.act.export_apply(self.name(), self.size());
 
         return ret;
     }
 
     fn get_fun(&self) -> Activations {
         return self.act;
+    }
+
+    fn name(&self) -> &str {
+        return self.name;
     }
 }
 
@@ -223,14 +247,10 @@ impl OutputNode {
         }
     }
 
-    pub fn export_output(&self, output_mp: &HashMap<String, Tensor>) -> String {
+    pub fn export_output(&self) -> String {
         let mut ret = "".to_owned();
-        for out in self.verilog_outputs {
-            ret += &format!(
-                "{} <+ {};\n",
-                out,
-                output_mp.get(self.name()).unwrap().double_value(&[0])
-            );
+        for (i, out) in self.verilog_outputs().iter().enumerate() {
+            ret += &format!("{} <+ {}[{}];\n", out, self.name(), i);
         }
 
         return ret;
@@ -238,6 +258,10 @@ impl OutputNode {
 
     pub fn name(&self) -> &str {
         return self.name;
+    }
+
+    pub fn verilog_outputs(&self) -> &[&str] {
+        return self.verilog_outputs;
     }
 }
 
@@ -269,14 +293,18 @@ impl Node for OutputNode {
         return ret;
     }
 
-    fn export_forward(&self, id: &str) -> String {
-        let ret = self.act.export_apply(&id, self.size());
+    fn export_forward(&self) -> String {
+        let ret = self.act.export_apply(self.name(), self.size());
 
         return ret;
     }
 
     fn get_fun(&self) -> Activations {
         return self.act;
+    }
+
+    fn name(&self) -> &str {
+        return self.name();
     }
 }
 

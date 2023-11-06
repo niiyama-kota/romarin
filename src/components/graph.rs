@@ -135,7 +135,7 @@ impl Graph {
         return ret;
     }
 
-    pub fn gen_verilog(&self, input: &str, output: &str) -> String {
+    pub fn gen_verilog(&self) -> String {
         let mut var: usize = 0;
         let mut fresh = || {
             var += 1;
@@ -154,39 +154,78 @@ impl Graph {
 
         let mut content = "analog begin\n".to_owned();
 
+        // initialize variables for Edge transformation
         for e in self.edge_list.iter() {
             let evar = fresh();
             content += &e.export_params(&format!("l{}", evar));
             edge_variables.insert((e.from(), e.to()), evar);
         }
+        // initialize variables for storing tensor at Node
         for e in self.edge_list.iter() {
             let from = e.from();
             if let Some(_) = node_variables.get(&from) {
-                // FIXME: should return some Error
+                // already initialized
             } else {
                 let var = fresh();
-                content += &from.export_init(&format!("{var}"));
+                match from {
+                    NodeType::Input(n) => {
+                        content += &n.export_input(n.verilog_inputs().to_vec());
+                    }
+                    NodeType::Hidden(n) => {
+                        content += &n.export_init(&format!("{}", n.name()));
+                    }
+                    NodeType::Output(_) => {
+                        // FIXME: should return errors (OutputNode cannot be from Node)
+                        panic!()
+                    }
+                }
                 node_variables.insert(from, var);
             }
 
             let to = e.to();
             if let Some(_) = node_variables.get(&to) {
+                // already initialized
             } else {
                 let var = fresh();
-                content += &to.export_init(&format!("{var}"));
+                match to {
+                    NodeType::Input(_) => {
+                        // FIXME: should return errors(InputNode cannot be to Node)
+                        panic!()
+                    }
+                    NodeType::Hidden(n) => {
+                        content += &n.export_init(n.name());
+                    }
+                    NodeType::Output(n) => {
+                        content += &n.export_init(n.name());
+                    }
+                }
                 node_variables.insert(to, var);
             }
         }
 
+        // implement forwarding process
         for e in self.edge_list.iter() {
             let from = e.from();
             let to = e.to();
             let edge = (from, to);
-            let &from_var = node_variables.get(&from).unwrap();
-            let &to_var = node_variables.get(&to).unwrap();
             let &e_var = edge_variables.get(&edge).unwrap();
-            content += &from.export_forward(&from_var.to_string());
+            // if already activated from Node values, this operation should be removeds
+            content += &from.export_forward();
             content += &e.export_forward(&format!("{e_var}"));
+        }
+
+        // implement assign output process
+        for e in self.edge_list.iter() {
+            let to = e.to();
+            match to {
+                NodeType::Output(n) => {
+                    // FIXME!: if already assign output, should do nothing
+                    content += &n.export_output();
+                }
+                _ => {
+                    // Do Nothing
+                }
+            }
         }
 
         let footer = "\nend //end analog block\nendmodule\n";
@@ -212,10 +251,9 @@ fn test_add_edge() {
     use tch::Kind;
 
     let mut g = Graph::new();
-    let dummy_input = &["Dummy"];
     g.add_edge(Linear::new(
-        NodeType::Input(InputNode::new(2, Activations::Id, "Vs", dummy_input)),
-        NodeType::Hidden(HiddenNode::new(5, Activations::ReLU)),
+        NodeType::Input(InputNode::new(2, Activations::Id, "Vs", &["Dummy"])),
+        NodeType::Hidden(HiddenNode::new(5, Activations::ReLU, "1")),
         nn::linear(g.vs.root(), 2, 5, Default::default()),
     ));
 
