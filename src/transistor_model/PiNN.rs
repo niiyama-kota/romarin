@@ -291,7 +291,7 @@ fn test_pinn_by_graph() {
     let id2vd1 = nn::linear(
         pinn.vs.root(),
         1,
-        2,
+        20,
         LinearConfig {
             ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
             bs_init: None,
@@ -300,7 +300,7 @@ fn test_pinn_by_graph() {
     );
     let vd12vd2 = nn::linear(
         pinn.vs.root(),
-        2,
+        20,
         1,
         LinearConfig {
             ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
@@ -321,7 +321,7 @@ fn test_pinn_by_graph() {
     let ig2vg1 = nn::linear(
         pinn.vs.root(),
         1,
-        3,
+        30,
         LinearConfig {
             ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
             bs_init: None,
@@ -330,7 +330,7 @@ fn test_pinn_by_graph() {
     );
     let vg12vg2 = nn::linear(
         pinn.vs.root(),
-        3,
+        30,
         1,
         LinearConfig {
             ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
@@ -350,8 +350,8 @@ fn test_pinn_by_graph() {
     );
     let vd12vg1 = nn::linear(
         pinn.vs.root(),
-        2,
-        3,
+        20,
+        30,
         LinearConfig {
             ws_init: nn::init::DEFAULT_KAIMING_UNIFORM,
             bs_init: None,
@@ -379,30 +379,14 @@ fn test_pinn_by_graph() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let _ = pinn.train(&xs, &y, 10000, 1e-3);
-    println!("{}", pinn.gen_verilog());
-
-    let output = pinn
-        .forward(&xs)
-        .get("ids_output")
-        .unwrap()
-        .copy()
-        .reshape([-1, 1]);
-    let mut ids_pred: Vec<f32> = vec![0.0; output.numel()];
-    output.copy_data(&mut ids_pred, output.numel());
+    let va_code = pinn.gen_verilog();
+    println!("{}", va_code);
 
     let data_output_path = Path::new("./data");
-    create_dir_all(&data_output_path);
-    let mut w = BufWriter::new(File::create(data_output_path.join("test_data.csv")).unwrap());
+    let _ = create_dir_all(&data_output_path);
+    let mut w = BufWriter::new(File::create(data_output_path.join("auto_generated_model.va")).unwrap());
 
-    writeln!(w, "VGS,VDS,IDS,IDS_PRED");
-    for (&vgs, (&vds, (&ids_t, &ids_p))) in dataset.vgs.iter().zip(
-        dataset
-            .vds
-            .iter()
-            .zip(dataset.ids.iter().zip(ids_pred.iter())),
-    ) {
-        writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p);
-    }
+    let _ = writeln!(w, "{}", va_code);
 }
 
 #[test]
@@ -422,3 +406,4 @@ fn test_split_tensor() {
     x.print();
     vgs_vds[1].print();
 }
+
