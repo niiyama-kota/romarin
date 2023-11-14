@@ -1,9 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::components::node::*;
-use crate::components::utils::{
-    array_init, declare_linear, declare_matrix_add, declare_matrix_mul,
-};
+use crate::components::utils::{declare_matrix_add, declare_matrix_mul};
 use anyhow::Result;
 use tch::{
     nn::{self, Module, OptimizerConfig, VarStore},

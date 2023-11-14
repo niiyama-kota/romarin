@@ -53,7 +53,7 @@ pub fn declare_tensor(ts: &Tensor, alias: &str, break_line_num: Option<usize>) -
 pub fn declare_linear(linear: &nn::Linear, alias: &str) -> String {
     let size = linear.ws.size2().unwrap();
     let mut ret = "".to_owned();
-    
+
     ret += &declare_tensor(
         &linear.ws,
         &format!("{}{}", alias, "_ws"),
