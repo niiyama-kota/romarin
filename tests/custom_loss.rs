@@ -1,42 +1,3 @@
-use tch::{
-    nn::{self, OptimizerConfig},
-    Device, Kind, Tensor,
-};
-
-#[test]
-fn test_custom_loss() {
-    let x = Tensor::from_slice2(&[[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
-        .reshape([-1, 5])
-        .to_kind(Kind::Float)
-        .set_requires_grad(true);
-    // y = sum(xi^2)
-    let y = Tensor::from_slice2(&[[2, 4, 6, 8, 10], [12, 14, 16, 18, 20]])
-        .reshape([-1, 5])
-        .to_kind(Kind::Float)
-        .set_requires_grad(true);
-    let vs = nn::VarStore::new(Device::Cpu);
-    let k = vs
-        .root()
-        .f_var("coef", &[], nn::Init::Uniform { lo: 0f64, up: 1f64 })
-        .unwrap();
-    println!("{:?}", vs.variables());
-
-    let mut opt = nn::AdamW::default().build(&vs, 5e-4).unwrap();
-    for _ in 0..=10000 {
-        opt.zero_grad();
-        let out = &k * &x;
-        let loss = ((&out - &y) * (&out - &y)).mean(Some(Kind::Float));
-        loss.backward();
-        opt.step();
-        loss.print();
-        k.grad().print();
-    }
-    (&k * &x).print();
-    x.print();
-    y.print();
-    println!("");
-}
-
 #[test]
 fn test_pinn_with_monotonous_restrict() {
     use romarin::components::graph::Graph;
@@ -51,11 +12,11 @@ fn test_pinn_with_monotonous_restrict() {
         path::Path,
     };
     use tch::{
-        nn::{self, LinearConfig},
+        nn::{self, LinearConfig, OptimizerConfig},
         Kind, Tensor,
     };
 
-    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
 
     let mut xs = HashMap::new();
     xs.insert(
@@ -184,7 +145,7 @@ fn test_pinn_with_monotonous_restrict() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let lr = 1e-3;
-    let epoch = 10000;
+    let epoch = 40000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
     for _epoch in 1..=epoch {
@@ -197,15 +158,16 @@ fn test_pinn_with_monotonous_restrict() {
                 .unwrap()
                 .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Mean);
             loss1.backward();
-            let vd = xs.get("vd_input").unwrap();
-            let loss2: Tensor = 1e-2 * vd.grad() * vd * vd;
+            let mut vd = xs.get("vd_input").unwrap().set_requires_grad(true);
+            let loss2: Tensor = 1e5 * vd.grad() * &vd * &vd;
             let loss2 = loss2.mean(Some(Kind::Float));
-            loss2.backward();
-
+            opt.step();
+            opt.backward_step(&loss2);
+            vd.zero_grad();
+            
             println!("loss1: {}", loss1.double_value(&[]));
             println!("loss2: {}", loss2.double_value(&[]));
-
-            opt.step();
+            
         }
     }
 
