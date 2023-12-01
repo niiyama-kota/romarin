@@ -91,9 +91,23 @@ impl Graph {
                 NodeType::Hidden(_) => {
                     match hidden_mp.get(to) {
                         Some(tensor) => {
-                            // FIXME: should support not only product op but also general Monoid op
                             assert_eq!(tensor.size(), v.size());
-                            hidden_mp.insert(*to, tensor * v);
+                            match to.get_acc() {
+                                AccFn::Sum => {
+                                    hidden_mp.insert(*to, tensor + v);
+                                }
+                                AccFn::Mul => {
+                                    hidden_mp.insert(*to, tensor * v);
+                                }
+                                AccFn::Max => {
+                                    assert!(false, "not implemented now");
+                                    // hidden_mp.insert(*to, tensor.max_other(&v));
+                                }
+                                AccFn::Min => {
+                                    assert!(false, "not implemented now");
+                                    // hidden_mp.insert(*to, tensor.min_other(&v));
+                                }
+                            }
                         }
                         None => {
                             hidden_mp.insert(*to, v);
@@ -103,9 +117,23 @@ impl Graph {
                 NodeType::Output(_) => {
                     match output_mp.get(to) {
                         Some(tensor) => {
-                            // FIXME: should support not only product op but also general Monoid op
                             assert_eq!(tensor.size(), v.size());
-                            output_mp.insert(*to, tensor * v);
+                            match to.get_acc() {
+                                AccFn::Sum => {
+                                    output_mp.insert(*to, tensor + v);
+                                }
+                                AccFn::Mul => {
+                                    output_mp.insert(*to, tensor * v);
+                                }
+                                AccFn::Max => {
+                                    assert!(false, "not implemented now");
+                                    // output_mp.insert(*to, tensor.max_other(&v));
+                                }
+                                AccFn::Min => {
+                                    assert!(false, "not implemented now");
+                                    // output_mp.insert(*to, tensor.min_other(&v));
+                                }
+                            }
                         }
                         None => {
                             output_mp.insert(*to, v);
@@ -268,13 +296,20 @@ fn test_hermite_prod() {
 
 #[test]
 fn test_add_edge() {
+    use crate::components::node::AccFn;
     use crate::components::utils::Activations;
     use tch::Kind;
 
     let mut g = Graph::new();
     g.add_edge(Linear::new(
-        NodeType::Input(InputNode::new(2, Activations::Id, "Vs", &["Dummy"])),
-        NodeType::Hidden(HiddenNode::new(5, Activations::ReLU, "1")),
+        NodeType::Input(InputNode::new(
+            2,
+            Activations::Id,
+            AccFn::Sum,
+            "Vs",
+            &["Dummy"],
+        )),
+        NodeType::Hidden(HiddenNode::new(5, Activations::ReLU, AccFn::Sum, "1")),
         nn::linear(g.vs.root(), 2, 5, Default::default()),
     ));
 
@@ -304,50 +339,3 @@ fn test_add_edge() {
         outs.1.print();
     }
 }
-
-// #[test]
-// fn test_train() {
-//     use tch::Kind;
-
-//     let mut g = Graph::new();
-//     let n1 = Node::new(2, Activations::Id);
-//     let n2 = Node::new(5, Activations::ReLU);
-//     let n3 = Node::new(1, Activations::ReLU);
-//     let l1 = nn::linear(g.vs.root(), 2, 5, Default::default());
-//     let l2 = nn::linear(g.vs.root(), 5, 1, Default::default());
-//     g.add_edge(Edge {
-//         from: n1,
-//         to: n2,
-//         trans: l1,
-//     });
-//     g.add_edge(Edge {
-//         from: n2,
-//         to: n3,
-//         trans: l2,
-//     });
-
-//     // y = (x1 + 2*x2) / 10
-//     let x1 = &[0.1, 0.2, 0.3, 0.4];
-//     let x2 = &[0.5, 1.0, 1.5, 2.0];
-//     let xs = Tensor::stack(&[Tensor::from_slice(x1), Tensor::from_slice(x2)], 1)
-//         .to_kind(Kind::Float)
-//         .reshape([-1, 2]);
-//     let y: Vec<f32> = x1
-//         .iter()
-//         .zip(x2)
-//         .map(|(&x1, &x2)| (x1 + 2.0 * x2) / 10.0)
-//         .collect();
-//     let y = Tensor::stack(&[Tensor::from_slice(y.as_slice())], 1)
-//         .to_kind(Kind::Float)
-//         .reshape([-1, 1]);
-
-//     let _ = g.train(&xs, &y, 10000, 1e-3);
-
-//     println!(
-//         "{}",
-//         g.gen_verilog(
-//             "analog begin\n/// input ///\n",
-//             "/// output ///\nI(b_ds) <+ "
-//         )
-//     );
-// }
