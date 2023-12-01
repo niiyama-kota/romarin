@@ -106,6 +106,35 @@ pub fn declare_activation(activation_kind: Activations) -> String {
     return ret;
 }
 
+pub fn declare_matrix_mul(acc_kind: AccFn) -> String {
+    let mut ret = "".to_owned();
+    ret += "`ifndef MATMUL\\\n";
+    // H = Wx + b
+    ret += "`define MATMUL(W, x, B, H, W_dim1, W_dim2_B_dim1)\\\n";
+    ret += "\tfor (i = 0; i < W_dim1; i = i + 1) begin\\\n";
+    ret += "\t\ttmp = 0.0;\\\n";
+    ret += "\t\tfor (j = 0; j < W_dim2_B_dim1; j = j + 1) begin\\\n";
+    ret += "\t\t\ttmp = tmp + W[i][j]*x[j];\\\n";
+    ret += "\t\tend\\\n";
+    match acc_kind {
+        AccFn::Sum => {
+            ret += "\t\t\tH[j] = H[j] + tmp;\\\n";
+        }
+        AccFn::Mul => {
+            ret += "\t\t\tH[j] = H[j] * tmp;\\\n";
+        }
+        AccFn::Max => {
+            ret += "\t\t\tH[j] = max(H[j], tmp);\\\n";
+        }
+        AccFn::Min => {
+            ret += "\t\t\tH[j] = min(H[j], tmp);\\\n";
+        }
+    }
+    ret += "\tend\\\n";
+
+    return ret;
+}
+
 pub fn declare_matrix_mul_add(acc_kind: AccFn) -> String {
     let mut ret = "".to_owned();
     ret += "`ifndef MATMULADD\\\n";
@@ -114,20 +143,20 @@ pub fn declare_matrix_mul_add(acc_kind: AccFn) -> String {
     ret += "\tfor (i = 0; i < W_dim1; i = i + 1) begin\\\n";
     ret += "\t\ttmp = 0.0;\\\n";
     ret += "\t\tfor (j = 0; j < W_dim2_B_dim1; j = j + 1) begin\\\n";
-    ret += "\t\t\ttmp = tmp + W[i][j]*B[j] + B[j];\\\n";
+    ret += "\t\t\ttmp = tmp + W[i][j]*x[j] + B[j];\\\n";
     ret += "\t\tend\\\n";
     match acc_kind {
         AccFn::Sum => {
-            ret += "\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] + tmp;\\\n";
+            ret += "\t\t\tH[j] = H[j] + tmp;\\\n";
         }
         AccFn::Mul => {
-            ret += "\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] * tmp;\\\n";
+            ret += "\t\t\tH[j] = H[j] * tmp;\\\n";
         }
         AccFn::Max => {
-            ret += "\t\t\tC[i*C_dim2 + j] = max(C[i*C_dim2 + j], tmp);\\\n";
+            ret += "\t\t\tH[j] = max(H[j], tmp);\\\n";
         }
         AccFn::Min => {
-            ret += "\t\t\tC[i*C_dim2 + j] = min(C[i*C_dim2 + j], tmp);\\\n";
+            ret += "\t\t\tH[j] = min(H[j], tmp);\\\n";
         }
     }
     ret += "\tend\\\n";
