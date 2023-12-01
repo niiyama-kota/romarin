@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use tch::{nn, Tensor};
 
 use super::node::AccFn;
@@ -80,7 +78,6 @@ pub fn declare_linear(linear: &nn::Linear, alias: &str) -> String {
     ret += &declare_tensor(&linear.ws, &format!("{}{}", alias, "_ws"));
     if let Some(bs) = &linear.bs {
         ret += &declare_tensor(bs, &format!("{}{}", alias, "_bs"));
-    } else {
     }
 
     return ret;
@@ -108,26 +105,29 @@ pub fn declare_activation(activation_kind: Activations) -> String {
 
 pub fn declare_matrix_mul(acc_kind: AccFn) -> String {
     let mut ret = "".to_owned();
-    ret += "`ifndef MATMUL\\\n";
+    ret += &format!("`ifndef MATMUL{}\\\n", (acc_kind as AccFn).to_string());
     // H = Wx + b
-    ret += "`define MATMUL(W, x, B, H, W_dim1, W_dim2_B_dim1)\\\n";
-    ret += "\tfor (i = 0; i < W_dim1; i = i + 1) begin\\\n";
+    ret += &format!(
+        "`define MATMUL{}(W, x, H, x_dim, H_dim)\\\n",
+        (acc_kind as AccFn).to_string()
+    );
+    ret += "\tfor (i = 0; i < H_dim; i = i + 1) begin\\\n";
     ret += "\t\ttmp = 0.0;\\\n";
-    ret += "\t\tfor (j = 0; j < W_dim2_B_dim1; j = j + 1) begin\\\n";
+    ret += "\t\tfor (j = 0; j < x_dim; j = j + 1) begin\\\n";
     ret += "\t\t\ttmp = tmp + W[i][j]*x[j];\\\n";
     ret += "\t\tend\\\n";
     match acc_kind {
         AccFn::Sum => {
-            ret += "\t\t\tH[j] = H[j] + tmp;\\\n";
+            ret += "\t\t\tH[i] = H[i] + tmp;\\\n";
         }
-        AccFn::Mul => {
-            ret += "\t\t\tH[j] = H[j] * tmp;\\\n";
+        AccFn::Prod => {
+            ret += "\t\t\tH[i] = H[i] * tmp;\\\n";
         }
         AccFn::Max => {
-            ret += "\t\t\tH[j] = max(H[j], tmp);\\\n";
+            ret += "\t\t\tH[i] = max(H[i], tmp);\\\n";
         }
         AccFn::Min => {
-            ret += "\t\t\tH[j] = min(H[j], tmp);\\\n";
+            ret += "\t\t\tH[i] = min(H[i], tmp);\\\n";
         }
     }
     ret += "\tend\\\n";
@@ -137,26 +137,29 @@ pub fn declare_matrix_mul(acc_kind: AccFn) -> String {
 
 pub fn declare_matrix_mul_add(acc_kind: AccFn) -> String {
     let mut ret = "".to_owned();
-    ret += "`ifndef MATMULADD\\\n";
+    ret += &format!("`ifndef MATMULADD{}\\\n", (acc_kind as AccFn).to_string());
     // H = Wx + b
-    ret += "`define MATMULADD(W, x, B, H, W_dim1, W_dim2_B_dim1)\\\n";
-    ret += "\tfor (i = 0; i < W_dim1; i = i + 1) begin\\\n";
+    ret += &format!(
+        "`define MATMULADD{}(W, x, B, H, x_dim, H_dim)\\\n",
+        (acc_kind as AccFn).to_string()
+    );
+    ret += "\tfor (i = 0; i < H_dim; i = i + 1) begin\\\n";
     ret += "\t\ttmp = 0.0;\\\n";
-    ret += "\t\tfor (j = 0; j < W_dim2_B_dim1; j = j + 1) begin\\\n";
+    ret += "\t\tfor (j = 0; j < x_dim; j = j + 1) begin\\\n";
     ret += "\t\t\ttmp = tmp + W[i][j]*x[j] + B[j];\\\n";
     ret += "\t\tend\\\n";
     match acc_kind {
         AccFn::Sum => {
-            ret += "\t\t\tH[j] = H[j] + tmp;\\\n";
+            ret += "\t\t\tH[i] = H[i] + tmp;\\\n";
         }
-        AccFn::Mul => {
-            ret += "\t\t\tH[j] = H[j] * tmp;\\\n";
+        AccFn::Prod => {
+            ret += "\t\t\tH[i] = H[i] * tmp;\\\n";
         }
         AccFn::Max => {
-            ret += "\t\t\tH[j] = max(H[j], tmp);\\\n";
+            ret += "\t\t\tH[i] = max(H[i], tmp);\\\n";
         }
         AccFn::Min => {
-            ret += "\t\t\tH[j] = min(H[j], tmp);\\\n";
+            ret += "\t\t\tH[i] = min(H[i], tmp);\\\n";
         }
     }
     ret += "\tend\\\n";
@@ -220,20 +223,6 @@ fn test_declare_activation() {
     assert_eq!(declare_activation(Activations::Sigmoid), expected_sigmoid);
     assert_eq!(declare_activation(Activations::Tanh), expected_tanh);
     assert_eq!(declare_activation(Activations::ReLU), expected_relu);
-}
-
-#[test]
-fn test_declare_matrix_mul() {
-    let expected: String = "`ifndef MATMUL\\\n`define MATMUL(A, B, C, C_dim1, C_dim2, K)\\\n\treal tmp = 0.0;\\\n\tfor (i = 0; i < C_dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < C_dim2; j = j + 1) begin\\\n\t\t\tfor (k = 0; k < K; k = k + 1) begin\\\n\t\t\t\ttmp = tmp + A[i*K + k]*B[k*C_dim2 + j];\\\n\t\t\tend\\\n\t\t\tC[i*C_dim2 + j] = C[i*C_dim2 + j] * tmp;\\\n\t\tend\\\n\tend\\\n".to_owned();
-
-    // assert_eq!(declare_matrix_mul(), expected);
-}
-
-#[test]
-fn test_declare_matrix_add() {
-    let expected: String = "`ifndef MATADD\\\n`define MATADD(A, B, dim1, dim2)\\\n\tfor (i = 0; i < dim1; i = i + 1) begin\\\n\t\tfor (j = 0; j < dim2; j = j + 1) begin\\\n\t\t\tA[i*dim2 + j] = A[i*dim2 + j] + B[i*dim2 + j];\\\n\t\tend\\\n\tend\\\n".to_owned();
-
-    // assert_eq!(declare_matrix_add(), expected);
 }
 
 #[test]

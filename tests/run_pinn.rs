@@ -40,15 +40,43 @@ fn test_pinn_by_graph() {
     );
 
     let mut pinn = Graph::new();
-    let input_vd = NodeType::Input(InputNode::new(1, Activations::Id, "vd_input", &["V(b_ds)"]));
-    let input_vg = NodeType::Input(InputNode::new(1, Activations::Id, "vg_input", &["V(b_gs)"]));
-    let vd_sub1 = NodeType::Hidden(HiddenNode::new(20, Activations::Tanh, "vd_sub1"));
-    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vd_sub2"));
-    let vg_sub1 = NodeType::Hidden(HiddenNode::new(30, Activations::Sigmoid, "vg_sub1"));
-    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Sigmoid, "vg_sub2"));
+    let input_vd = NodeType::Input(InputNode::new(
+        1,
+        Activations::Id,
+        AccFn::Sum,
+        "vd_input",
+        &["V(b_ds)"],
+    ));
+    let input_vg = NodeType::Input(InputNode::new(
+        1,
+        Activations::Id,
+        AccFn::Sum,
+        "vg_input",
+        &["V(b_gs)"],
+    ));
+    let vd_sub1 = NodeType::Hidden(HiddenNode::new(
+        20,
+        Activations::Tanh,
+        AccFn::Sum,
+        "vd_sub1",
+    ));
+    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, AccFn::Sum, "vd_sub2"));
+    let vg_sub1 = NodeType::Hidden(HiddenNode::new(
+        30,
+        Activations::Sigmoid,
+        AccFn::Sum,
+        "vg_sub1",
+    ));
+    let vg_sub2 = NodeType::Hidden(HiddenNode::new(
+        1,
+        Activations::Sigmoid,
+        AccFn::Sum,
+        "vg_sub2",
+    ));
     let output = NodeType::Output(OutputNode::new(
         1,
         Activations::Id,
+        AccFn::Prod,
         "ids_output",
         &["I(b_ds)"],
     ));
@@ -152,4 +180,24 @@ fn test_pinn_by_graph() {
         BufWriter::new(File::create(data_output_path.join("auto_generated_model.va")).unwrap());
 
     let _ = writeln!(w, "{}", va_code);
+
+    let mut w = BufWriter::new(File::create(data_output_path.join("test_data.csv")).unwrap());
+    let output = pinn
+        .forward(&xs)
+        .get("ids_output")
+        .unwrap()
+        .copy()
+        .reshape([-1, 1]);
+    let mut ids_pred: Vec<f32> = vec![0.0; output.numel()];
+    output.copy_data(&mut ids_pred, output.numel());
+
+    let _ = writeln!(w, "VGS,VDS,IDS,IDS_PRED");
+    for (&vgs, (&vds, (&ids_t, &ids_p))) in dataset.vgs.iter().zip(
+        dataset
+            .vds
+            .iter()
+            .zip(dataset.ids.iter().zip(ids_pred.iter())),
+    ) {
+        let _ = writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p);
+    }
 }

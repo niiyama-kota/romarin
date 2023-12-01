@@ -23,7 +23,7 @@ pub enum NodeType {
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub enum AccFn {
     Sum,
-    Mul,
+    Prod,
     Max,
     Min,
 }
@@ -52,6 +52,17 @@ pub struct OutputNode {
     acc: AccFn,
     name: &'static str,
     verilog_outputs: &'static [&'static str],
+}
+
+impl AccFn {
+    pub fn to_string(&self) -> String {
+        match self {
+            AccFn::Sum => "SUM".to_owned(),
+            AccFn::Prod => "PROD".to_owned(),
+            AccFn::Max => "MAX".to_owned(),
+            AccFn::Min => "MIN".to_owned(),
+        }
+    }
 }
 
 impl Module for NodeType {
@@ -167,12 +178,23 @@ impl Node for InputNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }
@@ -225,12 +247,23 @@ impl Node for HiddenNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }
@@ -307,12 +340,23 @@ impl Node for OutputNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }

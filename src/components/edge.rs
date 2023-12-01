@@ -1,7 +1,7 @@
 use tch::nn::{self, Module};
 
 use super::{
-    node::{Node, NodeType},
+    node::{AccFn, Node, NodeType},
     utils::declare_linear,
 };
 
@@ -38,25 +38,28 @@ impl Module for Linear {
 
 impl Edge for Linear {
     fn export_forward(&self, id: &str) -> String {
-        let mut ret = format!(
-            "`MATMUL(l{}_ws, {}, {}, {}, {}, {});\n",
-            id,
-            self.from.name(),
-            self.to.name(),
-            self.to.size(),
-            "1",
-            self.from.size()
-        );
+        let mut ret = "".to_owned();
         match self.trans.bs {
             Some(_) => {
                 ret += &format!(
-                    "`MATADD({}, l{}_bs, {}, 1);\n",
+                    "`MATMULADD{}(l{id}_ws, {},  l{id}_bs, {}, {}, {});\n",
+                    (self.to.get_acc() as AccFn).to_string(),
+                    self.from.name(),
                     self.to.name(),
-                    id,
-                    self.to.size()
+                    self.from.size(),
+                    self.to.size(),
                 );
             }
-            None => ret += "// no bias are set\n",
+            None => {
+                ret += &format!(
+                    "`MATMUL{}(l{id}_ws, {}, {}, {}, {});\n",
+                    (self.to.get_acc() as AccFn).to_string(),
+                    self.from.name(),
+                    self.to.name(),
+                    self.from.size(),
+                    self.to.size(),
+                );
+            }
         }
 
         return ret;

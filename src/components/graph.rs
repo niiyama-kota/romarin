@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::components::node::*;
-use crate::components::utils::{declare_matrix_add, declare_matrix_mul};
+use crate::components::utils::{declare_matrix_mul, declare_matrix_mul_add};
 use anyhow::Result;
 use tch::{
     nn::{self, Module, OptimizerConfig, VarStore},
@@ -96,15 +96,17 @@ impl Graph {
                                 AccFn::Sum => {
                                     hidden_mp.insert(*to, tensor + v);
                                 }
-                                AccFn::Mul => {
+                                AccFn::Prod => {
                                     hidden_mp.insert(*to, tensor * v);
                                 }
                                 AccFn::Max => {
                                     assert!(false, "not implemented now");
+                                    // NOTE: we may be able to use pooling layer.
                                     // hidden_mp.insert(*to, tensor.max_other(&v));
                                 }
                                 AccFn::Min => {
                                     assert!(false, "not implemented now");
+                                    // NOTE: we may be able to use pooling layer.
                                     // hidden_mp.insert(*to, tensor.min_other(&v));
                                 }
                             }
@@ -122,7 +124,7 @@ impl Graph {
                                 AccFn::Sum => {
                                     output_mp.insert(*to, tensor + v);
                                 }
-                                AccFn::Mul => {
+                                AccFn::Prod => {
                                     output_mp.insert(*to, tensor * v);
                                 }
                                 AccFn::Max => {
@@ -174,9 +176,21 @@ impl Graph {
         let mut edge_variables = HashMap::<(NodeType, NodeType), usize>::new();
 
         let mut header = "`include \"disciplines.vams\"\n\n".to_owned();
-        header += &declare_matrix_mul();
+        header += &declare_matrix_mul(AccFn::Sum);
         header += "\n";
-        header += &declare_matrix_add();
+        header += &declare_matrix_mul(AccFn::Prod);
+        header += "\n";
+        header += &declare_matrix_mul(AccFn::Max);
+        header += "\n";
+        header += &declare_matrix_mul(AccFn::Min);
+        header += "\n";
+        header += &declare_matrix_mul_add(AccFn::Sum);
+        header += "\n";
+        header += &declare_matrix_mul_add(AccFn::Prod);
+        header += "\n";
+        header += &declare_matrix_mul_add(AccFn::Max);
+        header += "\n";
+        header += &declare_matrix_mul_add(AccFn::Min);
         header += "\n";
         header += "module mosfet(term_G, term_D, term_S);\n\tinout term_G, term_D, term_S;\n\telectrical term_G, term_D, term_S;\n\tbranch (term_G, term_S) b_gs;\n\tbranch (term_G, term_D) b_gd;\n\tbranch (term_D, term_S) b_ds;\n\n\tinteger i, j, k;\n\treal tmp = 0.0;\n\n";
 
