@@ -16,7 +16,7 @@ fn test_pinn_with_monotonous_restrict() {
         Kind, Tensor,
     };
 
-    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
 
     let mut xs = HashMap::new();
     xs.insert(
@@ -173,7 +173,7 @@ fn test_pinn_with_monotonous_restrict() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let lr = 1e-3;
-    let epoch = 40000;
+    let epoch = 10000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
     for _epoch in 1..=epoch {
