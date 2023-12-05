@@ -16,7 +16,7 @@ fn test_pinn_with_monotonous_restrict() {
         Kind, Tensor,
     };
 
-    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS.csv".to_string()).unwrap();
+    let dataset = loader::read_csv("data/SCT2080KE_ID-VDS-VGS_train.csv".to_string()).unwrap();
 
     let mut xs = HashMap::new();
     xs.insert(
@@ -42,15 +42,43 @@ fn test_pinn_with_monotonous_restrict() {
     );
 
     let mut pinn = Graph::new();
-    let input_vd = NodeType::Input(InputNode::new(1, Activations::Id, "vd_input", &["V(b_ds)"]));
-    let input_vg = NodeType::Input(InputNode::new(1, Activations::Id, "vg_input", &["V(b_gs)"]));
-    let vd_sub1 = NodeType::Hidden(HiddenNode::new(20, Activations::Tanh, "vd_sub1"));
-    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, "vd_sub2"));
-    let vg_sub1 = NodeType::Hidden(HiddenNode::new(30, Activations::Sigmoid, "vg_sub1"));
-    let vg_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Sigmoid, "vg_sub2"));
+    let input_vd = NodeType::Input(InputNode::new(
+        1,
+        Activations::Id,
+        AccFn::Sum,
+        "vd_input",
+        &["V(b_ds)"],
+    ));
+    let input_vg = NodeType::Input(InputNode::new(
+        1,
+        Activations::Id,
+        AccFn::Sum,
+        "vg_input",
+        &["V(b_gs)"],
+    ));
+    let vd_sub1 = NodeType::Hidden(HiddenNode::new(
+        20,
+        Activations::Tanh,
+        AccFn::Sum,
+        "vd_sub1",
+    ));
+    let vd_sub2 = NodeType::Hidden(HiddenNode::new(1, Activations::Tanh, AccFn::Sum, "vd_sub2"));
+    let vg_sub1 = NodeType::Hidden(HiddenNode::new(
+        30,
+        Activations::Sigmoid,
+        AccFn::Sum,
+        "vg_sub1",
+    ));
+    let vg_sub2 = NodeType::Hidden(HiddenNode::new(
+        1,
+        Activations::Sigmoid,
+        AccFn::Sum,
+        "vg_sub2",
+    ));
     let output = NodeType::Output(OutputNode::new(
         1,
         Activations::Id,
+        AccFn::Prod,
         "ids_output",
         &["I(b_ds)"],
     ));
@@ -150,25 +178,27 @@ fn test_pinn_with_monotonous_restrict() {
 
     for _epoch in 1..=epoch {
         println!("epoch {}", _epoch);
+        // calculate loss1
         let output_mp = pinn.forward(&xs);
-        for output_name in y.keys() {
-            opt.zero_grad();
-            let loss1 = output_mp
-                .get(output_name)
-                .unwrap()
-                .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Sum);
-            loss1.backward();
-            let mut vd = xs.get("vd_input").unwrap().set_requires_grad(true);
-            let loss2: Tensor = 1e4 * vd.grad() * &vd * &vd;
-            let loss2 = loss2.mean(Some(Kind::Float));
-            opt.step();
-            opt.backward_step(&loss2);
-            vd.zero_grad();
-            
-            println!("loss1: {}", loss1.double_value(&[]));
-            println!("loss2: {}", loss2.double_value(&[]));
-            
-        }
+        opt.zero_grad();
+        let loss1 = output_mp
+            .get("ids_output")
+            .unwrap()
+            .mse_loss(y.get("ids_output").unwrap(), tch::Reduction::Mean);
+        println!("loss1: {}", loss1.double_value(&[]));
+        opt.backward_step(&loss1);
+
+        // calculate loss2
+        xs.insert("vd_input".to_owned(), xs.get("vd_input").unwrap().detach());
+        let vd = xs.get("vd_input").unwrap().set_requires_grad(true);
+        opt.zero_grad();
+        let output_mp = pinn.forward(&xs);
+        let ids = output_mp.get("ids_output").unwrap();
+        ids.mean(Some(Kind::Float)).backward();
+        let loss2: Tensor = vd.grad() * vd.tanh();
+        let loss2 = loss2.mean(Some(Kind::Float));
+        println!("loss2: {}", loss2.double_value(&[]));
+        opt.backward_step(&loss2);
     }
 
     let va_code = pinn.gen_verilog();

@@ -8,6 +8,7 @@ pub trait Node: Module + Eq + PartialEq + Hash + Clone + Copy {
     fn export_init(&self, id: &str) -> String;
     fn export_forward(&self) -> String;
     fn get_fun(&self) -> Activations;
+    fn get_acc(&self) -> AccFn;
     fn name(&self) -> &str;
 }
 
@@ -20,9 +21,18 @@ pub enum NodeType {
 }
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+pub enum AccFn {
+    Sum,
+    Prod,
+    Max,
+    Min,
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub struct InputNode {
     size: usize,
     act: Activations,
+    acc: AccFn,
     name: &'static str,
     verilog_inputs: &'static [&'static str],
 }
@@ -31,6 +41,7 @@ pub struct InputNode {
 pub struct HiddenNode {
     size: usize,
     act: Activations,
+    acc: AccFn,
     name: &'static str,
 }
 
@@ -38,8 +49,20 @@ pub struct HiddenNode {
 pub struct OutputNode {
     size: usize,
     act: Activations,
+    acc: AccFn,
     name: &'static str,
     verilog_outputs: &'static [&'static str],
+}
+
+impl AccFn {
+    pub fn to_string(&self) -> String {
+        match self {
+            AccFn::Sum => "SUM".to_owned(),
+            AccFn::Prod => "PROD".to_owned(),
+            AccFn::Max => "MAX".to_owned(),
+            AccFn::Min => "MIN".to_owned(),
+        }
+    }
 }
 
 impl Module for NodeType {
@@ -85,6 +108,14 @@ impl Node for NodeType {
         }
     }
 
+    fn get_acc(&self) -> AccFn {
+        match self {
+            NodeType::Input(n) => n.get_acc(),
+            NodeType::Hidden(n) => n.get_acc(),
+            NodeType::Output(n) => n.get_acc(),
+        }
+    }
+
     fn name(&self) -> &str {
         match self {
             NodeType::Input(n) => n.name(),
@@ -98,12 +129,14 @@ impl InputNode {
     pub fn new(
         _size: usize,
         _act: Activations,
+        _acc: AccFn,
         _name: &'static str,
         _verilog_inputs: &'static [&str],
     ) -> Self {
         InputNode {
             size: _size,
             act: _act,
+            acc: _acc,
             name: _name,
             verilog_inputs: _verilog_inputs,
         }
@@ -145,12 +178,23 @@ impl Node for InputNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }
@@ -165,16 +209,21 @@ impl Node for InputNode {
         return self.act;
     }
 
+    fn get_acc(&self) -> AccFn {
+        return self.acc;
+    }
+
     fn name(&self) -> &str {
         return self.name;
     }
 }
 
 impl HiddenNode {
-    pub fn new(_size: usize, _act: Activations, _name: &'static str) -> Self {
+    pub fn new(_size: usize, _act: Activations, _acc: AccFn, _name: &'static str) -> Self {
         HiddenNode {
             size: _size,
             act: _act,
+            acc: _acc,
             name: _name,
         }
     }
@@ -198,12 +247,23 @@ impl Node for HiddenNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }
@@ -218,6 +278,10 @@ impl Node for HiddenNode {
         return self.act;
     }
 
+    fn get_acc(&self) -> AccFn {
+        return self.acc;
+    }
+
     fn name(&self) -> &str {
         return self.name;
     }
@@ -227,12 +291,14 @@ impl OutputNode {
     pub fn new(
         _size: usize,
         _act: Activations,
+        _acc: AccFn,
         _name: &'static str,
         _verilog_outputs: &'static [&str],
     ) -> Self {
         OutputNode {
             size: _size,
             act: _act,
+            acc: _acc,
             name: _name,
             verilog_outputs: _verilog_outputs,
         }
@@ -274,12 +340,23 @@ impl Node for OutputNode {
 
     fn export_init(&self, id: &str) -> String {
         let mut ret = "".to_owned();
-        ret += &format!(
-            "real {}[0:{}] = {};\n",
-            id,
-            self.size() - 1,
-            array_init(self.size(), 1.0) // initialize identity of node's op
-        );
+        ret += &format!("real {}[0:{}] = ", id, self.size() - 1,);
+        // initialize identity of node's op
+        match self.get_acc() {
+            AccFn::Sum => {
+                ret += &array_init(self.size(), 0.0);
+            }
+            AccFn::Prod => {
+                ret += &array_init(self.size(), 1.0);
+            }
+            AccFn::Max => {
+                ret += &array_init(self.size(), f32::MIN);
+            }
+            AccFn::Min => {
+                ret += &array_init(self.size(), f32::MAX);
+            }
+        }
+        ret += ";\n";
 
         return ret;
     }
@@ -292,6 +369,10 @@ impl Node for OutputNode {
 
     fn get_fun(&self) -> Activations {
         return self.act;
+    }
+
+    fn get_acc(&self) -> AccFn {
+        return self.acc;
     }
 
     fn name(&self) -> &str {
