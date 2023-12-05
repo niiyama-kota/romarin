@@ -1,4 +1,2 @@
 #[derive(Clone, Debug)]
-pub struct Level0 {
-
-}
+pub struct Level0 {}
