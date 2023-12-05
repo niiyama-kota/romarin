@@ -145,7 +145,7 @@ fn test_pinn_with_monotonous_restrict() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let lr = 1e-3;
-    let epoch = 40000;
+    let epoch = 10000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
     for _epoch in 1..=epoch {
@@ -156,10 +156,10 @@ fn test_pinn_with_monotonous_restrict() {
             let loss1 = output_mp
                 .get(output_name)
                 .unwrap()
-                .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Mean);
+                .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Sum);
             loss1.backward();
             let mut vd = xs.get("vd_input").unwrap().set_requires_grad(true);
-            let loss2: Tensor = 1e5 * vd.grad() * &vd * &vd;
+            let loss2: Tensor = 1e4 * vd.grad() * &vd * &vd;
             let loss2 = loss2.mean(Some(Kind::Float));
             opt.step();
             opt.backward_step(&loss2);
