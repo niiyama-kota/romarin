@@ -174,35 +174,33 @@ fn test_pinn_embedding_threshold_model() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let lr = 1e-3;
-    let epoch = 10000;
+    let epoch = 40000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
     let threshold_model = Threshold::new(
-        5.965096659982493,
-        1.8418581815787844,
-        0.8412370200276217,
-        0.020643794780914274,
-        0.042401849118418024,
-        14.845124194937101,
-        0.0,
+        5.99,
+        1.86,
+        0.83,
+        0.022,
+        0.045,
+        14.79,
+        0.0041,
     );
 
     for _epoch in 1..=epoch {
         println!("epoch {}", _epoch);
         // calculate loss1
-        let output_mp = pinn.forward(&xs);
         opt.zero_grad();
+        let output_mp = pinn.forward(&xs);
         let loss1 = output_mp
             .get("ids_output")
             .unwrap()
             .mse_loss(y.get("ids_output").unwrap(), tch::Reduction::Mean);
         println!("loss1: {}", loss1.double_value(&[]));
-        // opt.backward_step(&loss1);
 
         // calculate loss2
         let vg = xs.get("vg_input").unwrap();
         let vd = xs.get("vd_input").unwrap();
-        opt.zero_grad();
         let output_mp = pinn.forward(&xs);
         let ids = output_mp.get("ids_output").unwrap().reshape(&[-1, 1]);
         let loss2 = threshold_model
@@ -215,7 +213,7 @@ fn test_pinn_embedding_threshold_model() {
             .mse_loss(&ids, tch::Reduction::Mean);
         println!("loss2: {}", loss2.double_value(&[]));
 
-        let loss = loss1 + loss2;
+        let loss = loss1 + (1e3 / (_epoch as f32 + 1.0) * loss2);
         opt.backward_step(&loss);
     }
 

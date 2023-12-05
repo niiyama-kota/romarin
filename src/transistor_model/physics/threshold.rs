@@ -1,4 +1,3 @@
-use tch::nn::Module;
 use tch::Tensor;
 
 pub struct Threshold {
@@ -28,11 +27,18 @@ impl Threshold {
         |vgs: f32, vds: f32| -> f32 {
             let vp = vgs - self.vth;
             let vds_mod = vds / (1.0 + (vds / vp).powf(self.delta)).powf(1.0 / self.delta);
-            let idd = vp * vds_mod - 0.5 * vds_mod * vds_mod;
-            let ids_on =
-                (self.k * (1.0 + self.clm * vds) * idd) / (1.0 + self.md * (vgs - self.mdv));
 
-            let ids = if vgs >= self.vth { ids_on } else { 0.0 };
+            let ids = if vgs < self.vth {
+                0.0
+            } else {
+                self.k * (vp * vds_mod - 0.5 * vds_mod * vds_mod)
+            };
+            let ids = ids * (1.0 + self.clm * vds);
+            let ids = if vgs > self.mdv {
+                ids / (1.0 + (self.md * (vgs - self.mdv)))
+            } else {
+                ids
+            };
 
             ids
         }
@@ -75,6 +81,7 @@ fn test_tfun() {
         &[6.0, 0.0],
         &[6.0, 5.0],
         &[6.0, 10.0],
+        &[12.0, 31.6],
     ]);
 
     let ids = model.tfun(&vgs_vds);
