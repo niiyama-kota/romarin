@@ -1,10 +1,8 @@
 use anyhow::Result;
 use csv;
-use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
-use tch::Tensor;
 
 pub trait DataSet {
     // fn into_tensor(self: &Self) -> Tensor;
@@ -139,6 +137,7 @@ pub fn read_csv(file_path: String) -> Result<IV_measurements, Box<dyn Error>> {
 
 #[test]
 fn test_load_data() {
+    use tch::Tensor;
     let iv_measurement = read_csv("./data/integral_train.csv".to_string()).unwrap();
     println!("{:?}", iv_measurement);
 

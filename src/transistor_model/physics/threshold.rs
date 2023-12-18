@@ -1,17 +1,17 @@
 use tch::Tensor;
 
 pub struct Threshold {
-    vth: f32,
-    delta: f32,
-    k: f32,
-    clm: f32,
-    md: f32,
-    mdv: f32,
-    rd: f32,
+    vth: f32, // 閾値電圧
+    delta: f32, //スムージングパラメタ
+    k: f32, // 電流ゲインパラメタ
+    clm: f32, // チャネル長変調
+    md: f32, // 移動度劣化係数
+    mdv: f32, //移動度劣化開始電圧
+    // rd: f32,
 }
 
 impl Threshold {
-    pub fn new(vth: f32, delta: f32, k: f32, clm: f32, md: f32, mdv: f32, rd: f32) -> Self {
+    pub fn new(vth: f32, delta: f32, k: f32, clm: f32, md: f32, mdv: f32 /*rd: f32*/) -> Self {
         Threshold {
             vth: vth,
             delta: delta,
@@ -19,7 +19,7 @@ impl Threshold {
             clm: clm,
             md: md,
             mdv: mdv,
-            rd: rd,
+            // rd: rd,
         }
     }
 
@@ -68,7 +68,7 @@ fn test_tfun() {
         0.020643794780914274,
         0.042401849118418024,
         14.845124194937101,
-        0.0,
+        // 0.0,
     );
 
     let vgs_vds = Tensor::from_slice2(&[
