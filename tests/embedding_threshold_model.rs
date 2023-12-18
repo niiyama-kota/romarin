@@ -22,14 +22,14 @@ fn test_pinn_embedding_threshold_model() {
     let mut xs = HashMap::new();
     xs.insert(
         "vd_input".to_owned(),
-        Tensor::from_slice(dataset.vds.as_slice())
+        Tensor::from_slice(&dataset.vds.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1])
             .set_requires_grad(true),
     );
     xs.insert(
         "vg_input".to_owned(),
-        Tensor::from_slice(dataset.vgs.as_slice())
+        Tensor::from_slice(&dataset.vgs.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1])
             .set_requires_grad(true),
@@ -37,7 +37,7 @@ fn test_pinn_embedding_threshold_model() {
     let mut y = HashMap::new();
     y.insert(
         "ids_output".to_owned(),
-        Tensor::from_slice(dataset.ids.as_slice())
+        Tensor::from_slice(&dataset.ids.as_slice())
             .to_kind(Kind::Float)
             .reshape([-1, 1]),
     );
@@ -174,18 +174,10 @@ fn test_pinn_embedding_threshold_model() {
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
     let lr = 1e-3;
-    let epoch = 40000;
+    let epoch = 10000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
-    let threshold_model = Threshold::new(
-        5.99,
-        1.86,
-        0.83,
-        0.022,
-        0.045,
-        14.79,
-        0.0041,
-    );
+    let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79, 0.0041);
 
     for _epoch in 1..=epoch {
         println!("epoch {}", _epoch);
@@ -199,9 +191,22 @@ fn test_pinn_embedding_threshold_model() {
         println!("loss1: {}", loss1.double_value(&[]));
 
         // calculate loss2
-        let vg = xs.get("vg_input").unwrap();
-        let vd = xs.get("vd_input").unwrap();
-        let output_mp = pinn.forward(&xs);
+        let vg = (0..20).map(|x| x as f32 * 1.0);
+        let vg = Tensor::from_slice(
+            &vg.flat_map(|n| std::iter::repeat(n).take(200))
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+        .to_kind(Kind::Float)
+        .reshape([-1, 1]);
+        let vd = (0..4000).map(|x| (x % 200) as f32 * 0.1);
+        let vd = Tensor::from_slice(&vd.collect::<Vec<_>>().as_slice())
+            .to_kind(Kind::Float)
+            .reshape([-1, 1]);
+        let mut mesh = HashMap::new();
+        mesh.insert("vd_input".to_owned(), vd.copy());
+        mesh.insert("vg_input".to_owned(), vg.copy());
+        let output_mp = pinn.forward(&mesh);
         let ids = output_mp.get("ids_output").unwrap().reshape(&[-1, 1]);
         let loss2 = threshold_model
             .tfun(
@@ -213,8 +218,8 @@ fn test_pinn_embedding_threshold_model() {
             .mse_loss(&ids, tch::Reduction::Mean);
         println!("loss2: {}", loss2.double_value(&[]));
 
-        let loss = loss1 + (1e3 / (_epoch as f32 + 1.0) * loss2);
-        opt.backward_step(&loss);
+        // let loss = loss1 + (1e3 / (_epoch as f32 + 1.0) * loss2);
+        opt.backward_step(&loss2);
     }
 
     let va_code = pinn.gen_verilog();
@@ -246,4 +251,36 @@ fn test_pinn_embedding_threshold_model() {
     ) {
         let _ = writeln!(w, "{},{},{},{}", vgs, vds, ids_t, ids_p);
     }
+}
+
+#[test]
+fn test_tmp() {
+    use romarin::transistor_model::physics::threshold::Threshold;
+    use tch::{Kind, Tensor};
+
+    let vg = (0..20).map(|x| x as f32 * 1.0);
+    let vg = Tensor::from_slice(
+        &vg.flat_map(|n| std::iter::repeat(n).take(200))
+            .collect::<Vec<_>>()
+            .as_slice(),
+    )
+    .to_kind(Kind::Float)
+    .reshape([-1, 1]);
+    let vd = (0..4000).map(|x| (x % 200) as f32 * 0.1);
+    let vd = Tensor::from_slice(&vd.collect::<Vec<_>>().as_slice())
+        .to_kind(Kind::Float)
+        .reshape([-1, 1]);
+    let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79, 0.0041);
+    let ids = threshold_model
+        .tfun(
+            &Tensor::cat(&[vg.copy(), vd.copy()], 1)
+                .to_kind(Kind::Float)
+                .reshape(&[-1, 2]),
+        )
+        .reshape(&[-1, 1]);
+
+    Tensor::cat(&[vg.copy(), vd.copy(), ids.copy()], 1)
+        .to_kind(Kind::Float)
+        .reshape(&[-1, 3])
+        .print();
 }
