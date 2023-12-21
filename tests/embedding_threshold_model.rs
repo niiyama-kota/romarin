@@ -4,6 +4,7 @@ fn test_pinn_embedding_threshold_model() {
     use romarin::components::utils::Activations;
     use romarin::components::{edge::*, node::*};
     use romarin::loader;
+    use romarin::transistor_model::physics::level1::Level1;
     use romarin::transistor_model::physics::threshold::Threshold;
     use std::io::Write;
     use std::{
@@ -177,18 +178,19 @@ fn test_pinn_embedding_threshold_model() {
     let epoch = 10000;
     let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
 
-    let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79 /*0.0041*/);
+    // let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79 /*0.0041*/);
+    let threshold_model = Level1::new(0.83, 0.022, 5.99);
 
     for _epoch in 1..=epoch {
         println!("epoch {}", _epoch);
         // calculate loss1
         opt.zero_grad();
         let output_mp = pinn.forward(&xs);
-        let loss1 = output_mp
-            .get("ids_output")
-            .unwrap()
-            .mse_loss(y.get("ids_output").unwrap(), tch::Reduction::Mean);
-        println!("loss1: {}", loss1.double_value(&[]));
+        // let loss1 = output_mp
+        //     .get("ids_output")
+        //     .unwrap()
+        //     .mse_loss(y.get("ids_output").unwrap(), tch::Reduction::Mean);
+        // println!("loss1: {}", loss1.double_value(&[]));
 
         // calculate loss2
         let vg = (0..20).map(|x| x as f32 * 1.0);
@@ -255,6 +257,7 @@ fn test_pinn_embedding_threshold_model() {
 
 #[test]
 fn test_tmp() {
+    use romarin::transistor_model::physics::level1::Level1;
     use romarin::transistor_model::physics::threshold::Threshold;
     use tch::{Kind, Tensor};
 
@@ -270,7 +273,8 @@ fn test_tmp() {
     let vd = Tensor::from_slice(&vd.collect::<Vec<_>>().as_slice())
         .to_kind(Kind::Float)
         .reshape([-1, 1]);
-    let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79 /*0.0041*/);
+    // let threshold_model = Threshold::new(5.99, 1.86, 0.83, 0.022, 0.045, 14.79 /*0.0041*/);
+    let threshold_model = Level1::new(0.83, 0.022, 5.99);
     let ids = threshold_model
         .tfun(
             &Tensor::cat(&[vg.copy(), vd.copy()], 1)

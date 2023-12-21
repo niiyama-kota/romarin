@@ -1,13 +1,13 @@
 use tch::Tensor;
 
 pub struct Threshold {
-    vth: f32, // 閾値電圧
+    vth: f32,   // 閾値電圧
     delta: f32, //スムージングパラメタ
-    k: f32, // 電流ゲインパラメタ
-    clm: f32, // チャネル長変調
-    md: f32, // 移動度劣化係数
-    mdv: f32, //移動度劣化開始電圧
-    // rd: f32,
+    k: f32,     // 電流ゲインパラメタ
+    clm: f32,   // チャネル長変調
+    md: f32,    // 移動度劣化係数
+    mdv: f32,   //移動度劣化開始電圧
+                // rd: f32,
 }
 
 impl Threshold {
