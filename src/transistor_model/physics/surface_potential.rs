@@ -11,13 +11,13 @@ pub enum Mostype {
 }
 
 #[derive(Clone, Debug)]
-pub struct Level1 {
+pub struct SurfacePotential {
     kp: f32,
     lambda: f32,
     vth: f32,
 }
 
-impl Level1 {
+impl SurfacePotential {
     pub fn new(kp: f32, lambda: f32, vth: f32) -> Self {
         Self {
             kp: kp,
@@ -139,71 +139,4 @@ impl Level1 {
         self.set_param(best_param);
         // println!("Score: {:?}", objective(&self.model(), &vgs, &vds, &ids));
     }
-}
-
-#[test]
-fn test_make_grid() {
-    use std::fs::File;
-    use std::io::BufWriter;
-    use std::io::Write;
-    use std::path::Path;
-
-    let model = Level1 { kp: 0.61027044, lambda: 0.037695386, vth: 5.5387435 };
-    // let model = Level1::new(0.83, 0.022, 5.99);
-    let grid = model.make_grid(
-        (0..20)
-            .step_by(2)
-            .into_iter()
-            .map(|x| x as f32 / 1.0)
-            .collect::<Vec<_>>(),
-        (0..200)
-            .step_by(4)
-            .into_iter()
-            .map(|x| x as f32 / 10.0)
-            .collect::<Vec<_>>(),
-    );
-    let data_output_path = Path::new("./data");
-    let mut w =
-        BufWriter::new(File::create(data_output_path.join("level1_reference_data.csv")).unwrap());
-    let _ = writeln!(w, "VGS,VDS,IDS,IDS_PRED");
-    for (vgs, (vds, ids)) in grid[0]
-        .clone()
-        .into_iter()
-        .zip(grid[1].clone().into_iter().zip(grid[2].clone().into_iter()))
-    {
-        let _ = writeln!(w, "{},{},{},{}", vgs, vds, ids, ids);
-    }
-}
-
-#[test]
-fn test_level1() {
-    let mosfet = Level1::new(0.83, 0.022, 5.99);
-
-    let vgs_vds = Tensor::from_slice2(&[
-        &[0.0, 0.0],
-        &[0.0, 5.0],
-        &[0.0, 10.0],
-        &[3.0, 0.0],
-        &[3.0, 5.0],
-        &[3.0, 10.0],
-        &[6.0, 0.0],
-        &[6.0, 5.0],
-        &[6.0, 10.0],
-        &[12.0, 31.6],
-    ]);
-
-    let ids = mosfet.tfun(&vgs_vds);
-    ids.print();
-}
-
-#[test]
-fn test_sa() {
-    use crate::loader;
-
-    let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
-    let mut model = Level1::new(0.83, 0.022, 5.99);
-
-    model.simulated_anealing(dataset, 1.0, 0.001, 100000);
-
-    println!("{:?}", model);
 }
