@@ -78,13 +78,7 @@ impl Level1 {
         (self.kp, self.lambda, self.vth)
     }
 
-    pub fn simulated_anealing(
-        &mut self,
-        data: IV_measurements,
-        start_temp: f32,
-        end_temp: f32,
-        epoch: usize,
-    ) {
+    pub fn simulated_anealing(&mut self, data: IV_measurements, start_temp: f32, epoch: usize) {
         let vgs = data.vgs;
         let vds = data.vds;
         let ids = data.ids;
@@ -93,7 +87,6 @@ impl Level1 {
         let uni = Uniform::new_inclusive(-1.0, 1.0);
 
         let mut best_param = (self.kp, self.lambda, self.vth);
-        let param_sensitivity = (1.0f32, 0.01f32, 1.0f32);
         let objective = |model: &dyn Fn(f32, f32) -> f32,
                          vgs: &Vec<f32>,
                          vds: &Vec<f32>,
@@ -108,27 +101,39 @@ impl Level1 {
                 })
                 / datanum
         };
+        let mut best_score = objective(&self.model(), &vgs, &vds, &ids);
         for e in 0..epoch {
-            let temp = start_temp + (end_temp - start_temp) * (e as f32 / epoch as f32);
+            let temp = start_temp
+                * f32::powi(1.0 - (e as f32 / epoch as f32), 1)
+                * f32::powi(-(e as f32 / epoch as f32), 4);
             let rate = f32::exp(-1.0 / temp);
 
             let pre_param = self.params();
             let pre_score = objective(&self.model(), &vgs, &vds, &ids);
 
             // 遷移関数
-            let new_kp = pre_param.0 + rng.sample(uni) * param_sensitivity.0 * rate;
-            let new_lambda = pre_param.1 + rng.sample(uni) * param_sensitivity.1 * rate;
-            let new_vth = pre_param.2 + rng.sample(uni) * param_sensitivity.2 * rate;
+            let select_param: f32 = rng.gen();
+            let (select_kp, select_lambda, select_vth) = if select_param < 1.0 / 3.0 {
+                (1.0, 0.0, 0.0)
+            } else if select_param < 2.0 / 3.0 {
+                (0.0, 1.0, 0.0)
+            } else {
+                (0.0, 0.0, 1.0)
+            };
+            let new_kp = pre_param.0 + select_kp * rng.sample(uni) * rate;
+            let new_lambda = pre_param.1 + select_lambda * rng.sample(uni) * rate;
+            let new_vth = pre_param.2 + select_vth * rng.sample(uni) * rate;
             let new_param = (new_kp, new_lambda, new_vth);
             self.set_param(new_param);
 
             let new_score = objective(&self.model(), &vgs, &vds, &ids);
 
-            if new_score > pre_score {
+            if new_score < best_score {
+                best_score = new_score;
                 best_param = new_param;
             }
 
-            let prob = f32::exp((pre_score - new_score) / temp);
+            let prob = f32::exp((1.0 / new_score - 1.0 / pre_score) / temp);
 
             // f32型: [0, 1)の一様分布からサンプル
             if prob <= rng.gen() {
@@ -137,7 +142,7 @@ impl Level1 {
         }
 
         self.set_param(best_param);
-        // println!("Score: {:?}", objective(&self.model(), &vgs, &vds, &ids));
+        println!("Score: {:?}", objective(&self.model(), &vgs, &vds, &ids));
     }
 }
 
@@ -148,7 +153,11 @@ fn test_make_grid() {
     use std::io::Write;
     use std::path::Path;
 
-    let model = Level1 { kp: 0.61027044, lambda: 0.037695386, vth: 5.5387435 };
+    let model = Level1 {
+        kp: 0.61027044,
+        lambda: 0.037695386,
+        vth: 5.5387435,
+    };
     // let model = Level1::new(0.83, 0.022, 5.99);
     let grid = model.make_grid(
         (0..20)
@@ -202,8 +211,10 @@ fn test_sa() {
 
     let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
     let mut model = Level1::new(0.83, 0.022, 5.99);
+    // let mut model = Level1 { kp: 0.61027044, lambda: 0.037695386, vth: 5.5387435 };
+    // Score: 0.58780473
 
-    model.simulated_anealing(dataset, 1.0, 0.001, 100000);
+    model.simulated_anealing(dataset, 100.0, 1000000);
 
     println!("{:?}", model);
 }
