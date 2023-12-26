@@ -4,6 +4,8 @@ use ::std::ops::Index;
 use ::std::ops::IndexMut;
 use rand::distributions::Uniform;
 use rand::Rng;
+use rand_distr::Distribution;
+use rand_distr::Normal;
 use tch::Tensor;
 
 #[derive(Clone, Debug)]
@@ -111,9 +113,8 @@ impl SurfacePotentialModel {
         // initial values
         let mut phi_s0 =
             2.0 * constant::K * Self::T / constant::Q * f32::log10(self.na / constant::NI);
-        let mut phi_sl = phi_s0 + vds;
-        // let mut phi_s0 = 1.0;
-        // let mut phi_sl = 1.0;
+        // let mut phi_sl = phi_s0 + vds;
+        let mut phi_sl = 1.0;
 
         let eq = |phi_s: f32, phi_f: f32| -> f32 {
             let eyy = 0.0; //gradual channel 近似?
@@ -136,21 +137,22 @@ impl SurfacePotentialModel {
                     ))
         };
 
-        let eps = 1e-9;
-        while eq(phi_s0, 0.0) < eps {
-            let dif_phi = 1e-12;
+        let eps = 1e-16;
+        while f32::abs(eq(phi_s0, 0.0)) > eps {
+            let dif_phi = 1e-4;
             let dif_eq = eq(phi_s0 + dif_phi, 0.0) - eq(phi_s0, 0.0);
             phi_s0 = phi_s0 - eq(phi_s0, 0.0) / dif_eq;
         }
 
-        while eq(phi_sl, vds) < eps {
-            let dif_phi = 1e-12;
-            let dif_eq = eq(phi_s0 + dif_phi, vds) - eq(phi_s0, vds);
-            phi_sl = phi_sl - eq(phi_s0, vds) / dif_eq;
+        while f32::abs(eq(phi_sl, vds)) > eps {
+            let dif_phi = 1e-4;
+            let dif_eq = eq(phi_sl + dif_phi, vds) - eq(phi_sl, vds);
+            phi_sl = phi_sl - eq(phi_sl, vds) / dif_eq;
         }
 
         assert!(!phi_s0.is_nan());
         assert!(!phi_sl.is_nan());
+
 
         (phi_s0, phi_sl)
     }
@@ -237,7 +239,6 @@ impl SurfacePotentialModel {
         let ids = data.ids;
 
         let mut rng = rand::thread_rng();
-        let uni = Uniform::new_inclusive(-1.0, 1.0);
 
         let mut best_param = (
             self.tox,
@@ -266,6 +267,7 @@ impl SurfacePotentialModel {
         };
         let mut best_score = objective(&self.model(), &vgs, &vds, &ids);
         for e in 0..epoch {
+            println!("DEBUG: {}", e);
             let temp = start_temp
                 * f32::powi(1.0 - (e as f32 / epoch as f32), 1)
                 * f32::exp2(-((e as f32 + 0.5) / epoch as f32) * 4.0);
@@ -275,10 +277,10 @@ impl SurfacePotentialModel {
 
             // 遷移関数
             let select_param: usize = rng.sample(Uniform::new(0, 9));
-            // let param_sensitivity = vec![1e-8, 1e-8, 1e10, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-            let diff = rng.sample(uni);
             let pre_param = self[select_param];
-            self[select_param] = self[select_param] + diff * rate; /* * param_sensitivity[select_param]; */
+            let dist = Normal::<f32>::new(pre_param / 10.0, 1.0 / pre_param).unwrap();
+            let diff = dist.sample(&mut rng);
+            self[select_param] = self[select_param] + diff * rate;
 
             let new_score = objective(&self.model(), &vgs, &vds, &ids);
 
@@ -302,11 +304,6 @@ impl SurfacePotentialModel {
 
 #[test]
 fn test_calc_potential() {
-    // use crate::loader;
-    // let dataset = loader::read_csv("data/25_train.csv".to_string()).unwrap();
-    // let vgs = dataset.vgs;
-    // let vds = dataset.vds;
-    // let ids = dataset.ids;
     let model = SurfacePotentialModel {
         tox: 1.6328718e-7,
         vfbc: -8.462384e-7,
@@ -318,7 +315,7 @@ fn test_calc_potential() {
         theta: -56.88513,
         rd: -2.7292771,
     };
-    let (phi_s0, phi_sl) = model.calc_potential(5.0, 100.0, 0.0);
+    let (phi_s0, phi_sl) = model.calc_potential(10.0, 1000.0, 0.0);
     println!("surface potential(source) = {}", phi_s0);
     println!("surface potential(drain) = {}", phi_sl);
 }
@@ -329,19 +326,19 @@ fn test_sa() {
 
     let dataset = loader::read_csv("data/integral.csv".to_string()).unwrap();
     let mut model = SurfacePotentialModel {
-        tox: 1.6328718e-7,
-        vfbc: -8.462384e-7,
-        na: 439611800000.0,
-        rs: -113.43237,
-        delta: 41.88081,
-        k: 48.12051,
-        lambda: -0.0010460697,
-        theta: -56.88513,
-        rd: -2.7292771,
+        tox: -0.19995345,
+        vfbc: 0.47741473,
+        na: 397362950000.0,
+        rs: -29.455399,
+        delta: -33.5782,
+        k: 127.5739,
+        lambda: 1e2,
+        theta: -1.5390368,
+        rd: 32.41615,
     };
-    // Score: 1.8893663
+    // Score: 1.8041471
 
-    model.simulated_anealing(dataset, 100000.0, 1000000);
+    model.simulated_anealing(dataset, 1e2, 5000);
 
     println!("{:?}", model);
 }
@@ -353,17 +350,7 @@ fn test_make_grid() {
     use std::io::Write;
     use std::path::Path;
 
-    let model = SurfacePotentialModel {
-        tox: 1.6328718e-7,
-        vfbc: -8.462384e-7,
-        na: 1e5,
-        rs: -113.43237,
-        delta: 41.88081,
-        k: 48.12051,
-        lambda: -0.0010460697,
-        theta: -56.88513,
-        rd: -2.7292771,
-    };
+    let model = SurfacePotentialModel { tox: -0.19995345, vfbc: 0.47741473, na: 397362950000.0, rs: -29.455399, delta: -33.5782, k: 127.5739, lambda: 100.0, theta: -1.5390368, rd: 32.41615 };
     // let model = Level1::new(0.83, 0.022, 5.99);
     let grid = model.make_grid(
         (0..20)
