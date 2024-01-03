@@ -475,17 +475,17 @@ fn test_make_grid() {
             .map(|x| x as f64 / 10.0)
             .collect::<Vec<_>>(),
     );
-    let data_output_path = Path::new("./plot");
+    let data_output_path = Path::new("./data");
     let mut w = BufWriter::new(
-        File::create(data_output_path.join("surface_potential_reference_data.csv")).unwrap(),
+        File::create(data_output_path.join("SCT2450KE_surface_potential_reference_data.csv")).unwrap(),
     );
-    let _ = writeln!(w, "VGS,VDS,IDS,IDS_PRED");
+    let _ = writeln!(w, "VGS,IDS,VDS");
     for (vgs, (vds, ids)) in grid[0]
         .clone()
         .into_iter()
         .zip(grid[1].clone().into_iter().zip(grid[2].clone().into_iter()))
     {
-        let _ = writeln!(w, "{},{},{},{}", vgs, vds, ids, ids);
+        let _ = writeln!(w, "{},{},{}", vgs, ids, vds);
     }
 }
 

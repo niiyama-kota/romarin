@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use crate::components::node::*;
 use crate::components::utils::{declare_matrix_mul, declare_matrix_mul_add};
 use anyhow::Result;
+use tch::Kind;
 use tch::{
     nn::{self, Module, OptimizerConfig, VarStore},
     Device, Tensor,
@@ -80,9 +81,9 @@ impl Graph {
                 }
             };
             // apply activation function at from Node
-            let v = from.forward(v);
+            let v = from.forward(v).to_kind(Kind::Float);
             // apply transform function of edges
-            let v = t.forward(&v);
+            let v = t.forward(&v).to_kind(Kind::Float);
             match to {
                 NodeType::Input(_) => {
                     // FIXME: should return errors

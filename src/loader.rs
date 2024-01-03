@@ -35,42 +35,42 @@ pub fn min_max_scaling(measurements: &IV_measurements) -> ScaledMeasurements {
     let mut minimums = HashMap::<String, f32>::new();
     let mut maximums = HashMap::<String, f32>::new();
     minimums.insert(
-        "Ids".to_owned(),
+        "IDS".to_owned(),
         measurements
             .ids
             .iter()
             .fold(f32::MAX, |m, x| f32::min(m, *x)),
     );
     maximums.insert(
-        "Ids".to_owned(),
+        "IDS".to_owned(),
         measurements
             .ids
             .iter()
             .fold(f32::MIN, |m, x| f32::max(m, *x)),
     );
     minimums.insert(
-        "Vds".to_owned(),
+        "VDS".to_owned(),
         measurements
             .vds
             .iter()
             .fold(f32::MAX, |m, x| f32::min(m, *x)),
     );
     maximums.insert(
-        "Vds".to_owned(),
+        "VDS".to_owned(),
         measurements
             .vds
             .iter()
             .fold(f32::MIN, |m, x| f32::max(m, *x)),
     );
     minimums.insert(
-        "Vgs".to_owned(),
+        "VGS".to_owned(),
         measurements
             .vgs
             .iter()
             .fold(f32::MAX, |m, x| f32::min(m, *x)),
     );
     maximums.insert(
-        "Vgs".to_owned(),
+        "VGS".to_owned(),
         measurements
             .vgs
             .iter()
@@ -81,31 +81,31 @@ pub fn min_max_scaling(measurements: &IV_measurements) -> ScaledMeasurements {
         .ids
         .iter()
         .map(|x| {
-            (*x - minimums.get("Ids").unwrap_or(&0.))
-                / (maximums.get("Ids").unwrap_or(&1.) - minimums.get("Ids").unwrap_or(&0.))
+            (*x - minimums.get("IDS").unwrap_or(&0.))
+                / (maximums.get("IDS").unwrap_or(&1.) - minimums.get("IDS").unwrap_or(&0.))
         })
         .collect();
     let scaled_vds = measurements
         .vds
         .iter()
         .map(|x| {
-            (*x - minimums.get("Vds").unwrap_or(&0.))
-                / (maximums.get("Vds").unwrap_or(&1.) - minimums.get("Vds").unwrap_or(&0.))
+            (*x - minimums.get("VDS").unwrap_or(&0.))
+                / (maximums.get("VDS").unwrap_or(&1.) - minimums.get("VDS").unwrap_or(&0.))
         })
         .collect();
     let scaled_vgs = measurements
         .vgs
         .iter()
         .map(|x| {
-            (*x - minimums.get("Vgs").unwrap_or(&0.))
-                / (maximums.get("Vgs").unwrap_or(&1.) - minimums.get("Vgs").unwrap_or(&0.))
+            (*x - minimums.get("VGS").unwrap_or(&0.))
+                / (maximums.get("VGS").unwrap_or(&1.) - minimums.get("VGS").unwrap_or(&0.))
         })
         .collect();
 
     let mut measurements = HashMap::<String, Vec<f32>>::new();
-    measurements.insert("Vgs".to_owned(), scaled_vgs);
-    measurements.insert("Vds".to_owned(), scaled_vds);
-    measurements.insert("Ids".to_owned(), scaled_ids);
+    measurements.insert("VGS".to_owned(), scaled_vgs);
+    measurements.insert("VDS".to_owned(), scaled_vds);
+    measurements.insert("IDS".to_owned(), scaled_ids);
 
     ScaledMeasurements {
         minimums: minimums,
