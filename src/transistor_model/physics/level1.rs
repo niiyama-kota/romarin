@@ -74,14 +74,14 @@ impl Level1 {
         self.vth = params.2;
     }
 
-    fn params(&self) -> (f32, f32, f32) {
+    pub fn params(&self) -> (f32, f32, f32) {
         (self.kp, self.lambda, self.vth)
     }
 
-    pub fn simulated_anealing(&mut self, data: IV_measurements, start_temp: f32, epoch: usize) {
-        let vgs = data.vgs;
-        let vds = data.vds;
-        let ids = data.ids;
+    pub fn simulated_anealing(&mut self, data: &IV_measurements, start_temp: f32, epoch: usize) {
+        let vgs = &data.vgs;
+        let vds = &data.vds;
+        let ids = &data.ids;
 
         let mut rng = rand::thread_rng();
         let uni = Uniform::new_inclusive(-1.0, 1.0);
@@ -214,7 +214,7 @@ fn test_sa() {
     // let mut model = Level1 { kp: 0.61027044, lambda: 0.037695386, vth: 5.5387435 };
     // Score: 0.58780473
 
-    model.simulated_anealing(dataset, 100.0, 1000000);
+    model.simulated_anealing(&dataset, 100.0, 1000000);
 
     println!("{:?}", model);
 }

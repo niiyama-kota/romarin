@@ -405,7 +405,17 @@ fn test_sa() {
     use crate::loader;
 
     let dataset = loader::read_csv("data/SCT2450KE_train.csv".to_string()).unwrap();
-    let mut model = SurfacePotentialModel { scale: 171324.3635846557, tox: 5e-8, na: 1.2534396079784723e17, lambda: 0.019669796078470445, vfbc: -1.5301638574847534, theta: 0.005303409021004406, delta: 0.537279227992155, alpha: 15.468242796282272, rd: 0.07671305067487988 };
+    let mut model = SurfacePotentialModel {
+        scale: 171324.3635846557,
+        tox: 5e-8,
+        na: 1.2534396079784723e17,
+        lambda: 0.019669796078470445,
+        vfbc: -1.5301638574847534,
+        theta: 0.005303409021004406,
+        delta: 0.537279227992155,
+        alpha: 15.468242796282272,
+        rd: 0.07671305067487988,
+    };
     // let mut model = SurfacePotentialModel {
     //     scale: 1e5,
     //     tox: 5e-8,
@@ -461,7 +471,17 @@ fn test_make_grid() {
     use std::path::Path;
 
     // Score: 0.1607046045577904
-    let model = SurfacePotentialModel { scale: 105899.84475147062, tox: 5e-8, na: 5.074958142963157e16, lambda: 0.002616791838610094, vfbc: -0.2694651491610863, theta: 0.009159716686281865, delta: 1.4849531177386044, alpha: 12.836176866857711, rd: 0.03204362781211176 };
+    let model = SurfacePotentialModel {
+        scale: 105899.84475147062,
+        tox: 5e-8,
+        na: 5.074958142963157e16,
+        lambda: 0.002616791838610094,
+        vfbc: -0.2694651491610863,
+        theta: 0.009159716686281865,
+        delta: 1.4849531177386044,
+        alpha: 12.836176866857711,
+        rd: 0.03204362781211176,
+    };
     // let model = Level1::new(0.83, 0.022, 5.99);
     let grid = model.make_grid(
         (6..19)
@@ -477,7 +497,8 @@ fn test_make_grid() {
     );
     let data_output_path = Path::new("./data");
     let mut w = BufWriter::new(
-        File::create(data_output_path.join("SCT2450KE_surface_potential_reference_data.csv")).unwrap(),
+        File::create(data_output_path.join("SCT2450KE_surface_potential_reference_data.csv"))
+            .unwrap(),
     );
     let _ = writeln!(w, "VGS,IDS,VDS");
     for (vgs, (vds, ids)) in grid[0]

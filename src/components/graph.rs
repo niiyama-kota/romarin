@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use crate::components::node::*;
 use crate::components::utils::{declare_matrix_mul, declare_matrix_mul_add};
@@ -13,47 +14,49 @@ use super::edge::{Edge, Linear};
 
 #[derive(Debug)]
 pub struct Graph {
-    pub vs: VarStore,
     edge_list: Vec<Linear>,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        Graph {
-            vs: nn::VarStore::new(Device::Cpu),
-            edge_list: vec![],
-        }
+        Graph { edge_list: vec![] }
     }
 
-    pub fn train(
-        &self,
-        xs: &HashMap<String, Tensor>,
-        y: &HashMap<String, Tensor>,
-        epoch: usize,
-        lr: f64,
-    ) -> Result<()> {
-        let mut opt = nn::AdamW::default().build(&self.vs, lr)?;
+    // pub fn train(
+    //     &self,
+    //     xs: &HashMap<String, Tensor>,
+    //     y: &HashMap<String, Tensor>,
+    //     epoch: usize,
+    //     lr: f64,
+    // ) -> Result<()> {
+    //     let mut opt = nn::AdamW::default().build(&self.vs, lr)?;
 
-        for _epoch in 1..=epoch {
-            println!("epoch {}", _epoch);
-            opt.zero_grad();
-            let output_mp = self.forward(xs);
-            for output_name in y.keys() {
-                let loss = output_mp
-                    .get(output_name)
-                    .unwrap()
-                    .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Mean);
-                println!("loss for {output_name}:");
-                loss.print();
-                opt.backward_step(&loss);
-            }
-        }
+    //     for _epoch in 1..=epoch {
+    //         println!("epoch {}", _epoch);
+    //         opt.zero_grad();
+    //         let output_mp = self.forward(xs);
+    //         for output_name in y.keys() {
+    //             let loss = output_mp
+    //                 .get(output_name)
+    //                 .unwrap()
+    //                 .mse_loss(y.get(output_name).unwrap(), tch::Reduction::Mean);
+    //             println!("loss for {output_name}:");
+    //             loss.print();
+    //             opt.backward_step(&loss);
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn add_edge(&mut self, e: Linear) {
         self.edge_list.push(e);
+    }
+
+    pub fn grad(&mut self, edge_index: &[usize], b: bool) {
+        for i in edge_index {
+            self.edge_list[*i].grad(b);
+        }
     }
 
     pub fn forward(&self, inputs: &HashMap<String, Tensor>) -> HashMap<String, Tensor> {
@@ -315,6 +318,7 @@ fn test_add_edge() {
     use crate::components::utils::Activations;
     use tch::Kind;
 
+    let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut g = Graph::new();
     g.add_edge(Linear::new(
         NodeType::Input(InputNode::new(
@@ -325,7 +329,7 @@ fn test_add_edge() {
             &["Dummy"],
         )),
         NodeType::Hidden(HiddenNode::new(5, Activations::ReLU, AccFn::Sum, "1")),
-        nn::linear(g.vs.root(), 2, 5, Default::default()),
+        nn::linear(vs.root(), 2, 5, Default::default()),
     ));
 
     g.edge_list.first().unwrap().get_fun().ws.print();

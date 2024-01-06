@@ -39,6 +39,7 @@ fn test_pinn_by_graph() {
             .reshape([-1, 1]),
     );
 
+    let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut pinn = Graph::new();
     let input_vd = NodeType::Input(InputNode::new(
         1,
@@ -81,7 +82,7 @@ fn test_pinn_by_graph() {
         &["I(b_ds)"],
     ));
     let id2vd1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         20,
         LinearConfig {
@@ -91,7 +92,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vd12vd2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         1,
         LinearConfig {
@@ -101,7 +102,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vd22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -111,7 +112,7 @@ fn test_pinn_by_graph() {
         },
     );
     let ig2vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         30,
         LinearConfig {
@@ -121,7 +122,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vg12vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         30,
         1,
         LinearConfig {
@@ -131,7 +132,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vg22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -141,7 +142,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vd12vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         30,
         LinearConfig {
@@ -151,7 +152,7 @@ fn test_pinn_by_graph() {
         },
     );
     let vd22vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -170,7 +171,7 @@ fn test_pinn_by_graph() {
     pinn.add_edge(Linear::new(vd_sub2, output, vd22o));
     pinn.add_edge(Linear::new(vg_sub2, output, vg22o));
 
-    let _ = pinn.train(&xs, &y, 10000, 1e-3);
+    // let _ = pinn.train(&xs, &y, 10000, 1e-3);
     let va_code = pinn.gen_verilog();
     // println!("{}", va_code);
 

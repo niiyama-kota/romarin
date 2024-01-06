@@ -58,6 +58,7 @@ fn test_pinn_embedding_sp_model() {
     mesh.insert("vd_input".to_owned(), vd.copy());
     mesh.insert("vg_input".to_owned(), vg.copy());
 
+    let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut pinn = Graph::new();
     let input_vd = NodeType::Input(InputNode::new(
         1,
@@ -100,7 +101,7 @@ fn test_pinn_embedding_sp_model() {
         &["I(b_ds)"],
     ));
     let id2vd1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         20,
         LinearConfig {
@@ -110,7 +111,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vd12vd2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         1,
         LinearConfig {
@@ -120,7 +121,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vd22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -130,7 +131,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let ig2vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         30,
         LinearConfig {
@@ -140,7 +141,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vg12vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         30,
         1,
         LinearConfig {
@@ -150,7 +151,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vg22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -160,7 +161,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vd12vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         30,
         LinearConfig {
@@ -170,7 +171,7 @@ fn test_pinn_embedding_sp_model() {
         },
     );
     let vd22vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -191,7 +192,7 @@ fn test_pinn_embedding_sp_model() {
 
     let lr = 1e-2;
     let epoch = 5000;
-    let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
+    let mut opt = nn::AdamW::default().build(&vs, lr).unwrap();
 
     // let sp_model = SurfacePotentialModel::new(
     //     105899.84475147062,

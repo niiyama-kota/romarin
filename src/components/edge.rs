@@ -28,6 +28,15 @@ impl Linear {
             trans: trans,
         }
     }
+
+    pub fn grad(&mut self, b: bool) {
+        let ws = self.trans.ws.set_requires_grad(b);
+        let bs = match &self.trans.bs {
+            Some(bias) => Some(bias.set_requires_grad(b)),
+            None => None,
+        };
+        self.trans = nn::Linear { ws, bs }
+    }
 }
 
 impl Module for Linear {

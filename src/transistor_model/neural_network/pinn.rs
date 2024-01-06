@@ -77,6 +77,7 @@ fn test_pinn_construct() {
     };
     use tch::nn::{self, LinearConfig};
 
+    let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut pinn = Graph::new();
     let input_vd = NodeType::Input(InputNode::new(
         1,
@@ -119,7 +120,7 @@ fn test_pinn_construct() {
         &["I(b_ds)"],
     ));
     let id2vd1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         20,
         LinearConfig {
@@ -129,7 +130,7 @@ fn test_pinn_construct() {
         },
     );
     let vd12vd2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         1,
         LinearConfig {
@@ -139,7 +140,7 @@ fn test_pinn_construct() {
         },
     );
     let vd22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -149,7 +150,7 @@ fn test_pinn_construct() {
         },
     );
     let ig2vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         30,
         LinearConfig {
@@ -159,7 +160,7 @@ fn test_pinn_construct() {
         },
     );
     let vg12vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         30,
         1,
         LinearConfig {
@@ -169,7 +170,7 @@ fn test_pinn_construct() {
         },
     );
     let vg22o = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {
@@ -179,7 +180,7 @@ fn test_pinn_construct() {
         },
     );
     let vd12vg1 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         20,
         30,
         LinearConfig {
@@ -189,7 +190,7 @@ fn test_pinn_construct() {
         },
     );
     let vd22vg2 = nn::linear(
-        pinn.vs.root(),
+        vs.root(),
         1,
         1,
         LinearConfig {

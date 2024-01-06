@@ -67,6 +67,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
     );
 
     // define nn architecture
+    let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut pinn = Graph::new();
     let input = NodeType::Input(InputNode::new(
         2,
@@ -89,7 +90,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
         input,
         h1,
         linear(
-            pinn.vs.root(),
+            vs.root(),
             input.size() as i64,
             h1.size() as i64,
             LinearConfig::default(),
@@ -99,7 +100,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
         h1,
         h2,
         linear(
-            pinn.vs.root(),
+            vs.root(),
             h1.size() as i64,
             h2.size() as i64,
             LinearConfig::default(),
@@ -109,7 +110,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
         h2,
         output,
         linear(
-            pinn.vs.root(),
+            vs.root(),
             h2.size() as i64,
             output.size() as i64,
             LinearConfig::default(),
@@ -123,7 +124,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
     // run training
     let lr = 1e-3;
     let epoch = 10000;
-    let mut opt = nn::AdamW::default().build(&pinn.vs, lr).unwrap();
+    let mut opt = nn::AdamW::default().build(&vs, lr).unwrap();
 
     // let sp_model = SurfacePotentialModel::new(
     //     105899.84475147062,
@@ -187,7 +188,6 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
     output.copy_data(&mut ids_pred, output.numel());
 
     let _ = writeln!(w, "VGS,VDS,IDS_PRED");
-    println!("DEBUG: {}", ref_dataset.vgs.len());
     for (&vgs, (&vds, &ids_p)) in scaled_ref_dataset.get("VGS").unwrap().iter().zip(
         scaled_ref_dataset
             .get("VDS")
