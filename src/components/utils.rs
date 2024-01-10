@@ -1,14 +1,23 @@
+use std::hash::Hash;
 use tch::{nn, Tensor};
 
 use super::node::AccFn;
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum Activations {
     Id,
-    // Scale(Vec<f32>),
+    Scale(f32),
     Sigmoid,
     Tanh,
     ReLU,
+    LeakyReLU,
+}
+
+impl Eq for Activations {}
+impl Hash for Activations {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+    }
 }
 
 impl Activations {
@@ -18,17 +27,26 @@ impl Activations {
             Activations::Id => {
                 ret += &format!("/// applying Id to {id} ///\n");
             }
+            Activations::Scale(factor) => {
+                ret += &format!(
+                    "for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = {id}[i] / ({});\nend // end for\n",
+                    size, factor
+                );
+            }
             Activations::Sigmoid => {
-                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = 1 / (1 + exp(-{id}[i]));\nend\n", size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = 1 / (1 + exp(-{id}[i]));\nend // end for\n", size);
             }
             Activations::Tanh => {
                 ret += &format!(
-                    "for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = tanh({id}[i]);\nend\n",
+                    "for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = tanh({id}[i]);\nend // end for\n",
                     size
                 );
             }
             Activations::ReLU => {
-                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = ({id}[i] + abs({id}[i])) / 2;\nend\n", size);
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\t{id}[i] = ({id}[i] + abs({id}[i])) / 2;\nend// end for\n", size);
+            }
+            Activations::LeakyReLU => {
+                ret += &format!("for(i = 0; i < {}; i = i+1) begin\n\tif({id}[i] < 0) begin\n\t\t{id}[i] = 0.1*{id}[i];\n\tend // end if\nend// end for\n", size);
             }
         }
 
@@ -83,26 +101,6 @@ pub fn declare_linear(linear: &nn::Linear, alias: &str) -> String {
     return ret;
 }
 
-pub fn declare_activation(activation_kind: Activations) -> String {
-    let mut ret = "".to_owned();
-    match activation_kind {
-        Activations::Id => (),
-        Activations::Sigmoid => ret += "`define sigmoid(xs, x_dim)\\\n",
-        Activations::Tanh => ret += "`define tanh(xs, x_dim)\\\n",
-        Activations::ReLU => ret += "`define relu(xs, x_dim)\\\n",
-    }
-    ret += "\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n";
-    match activation_kind {
-        Activations::Id => (),
-        Activations::Sigmoid => ret += "\t\txs[i] = 1 / (1 + exp(-xs[i]));\\\n",
-        Activations::Tanh => ret += "\t\txs[i] = tanh(xs[i]);\\\n",
-        Activations::ReLU => ret += "\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n",
-    }
-    ret += "\tend\n";
-
-    return ret;
-}
-
 pub fn declare_matrix_mul(acc_kind: AccFn) -> String {
     let mut ret = "".to_owned();
     ret += &format!("`ifndef MATMUL{}\\\n", (acc_kind as AccFn).to_string());
@@ -118,16 +116,16 @@ pub fn declare_matrix_mul(acc_kind: AccFn) -> String {
     ret += "\t\tend\\\n";
     match acc_kind {
         AccFn::Sum => {
-            ret += "\t\t\tH[i] = H[i] + tmp;\\\n";
+            ret += "\t\tH[i] = H[i] + tmp;\\\n";
         }
         AccFn::Prod => {
-            ret += "\t\t\tH[i] = H[i] * tmp;\\\n";
+            ret += "\t\tH[i] = H[i] * tmp;\\\n";
         }
         AccFn::Max => {
-            ret += "\t\t\tH[i] = max(H[i], tmp);\\\n";
+            ret += "\t\tH[i] = max(H[i], tmp);\\\n";
         }
         AccFn::Min => {
-            ret += "\t\t\tH[i] = min(H[i], tmp);\\\n";
+            ret += "\t\tH[i] = min(H[i], tmp);\\\n";
         }
     }
     ret += "\tend\\\n";
@@ -146,8 +144,9 @@ pub fn declare_matrix_mul_add(acc_kind: AccFn) -> String {
     ret += "\tfor (i = 0; i < H_dim; i = i + 1) begin\\\n";
     ret += "\t\ttmp = 0.0;\\\n";
     ret += "\t\tfor (j = 0; j < x_dim; j = j + 1) begin\\\n";
-    ret += "\t\t\ttmp = tmp + W[i][j]*x[j] + B[j];\\\n";
+    ret += "\t\t\ttmp = tmp + W[i][j]*x[j];\\\n";
     ret += "\t\tend\\\n";
+    ret += "\t\ttmp = tmp + B[i];\\\n";
     match acc_kind {
         AccFn::Sum => {
             ret += "\t\t\tH[i] = H[i] + tmp;\\\n";
@@ -212,17 +211,6 @@ fn test_declare_tensor() {
         "real sample_tensor[0:2-1][0:3-1] = {\n\t{1, 2, 3, }, \n\t{4, 5, 6, }, \n};\n".to_owned();
 
     assert_eq!(declare_tensor(&tensor, "sample_tensor",), expected);
-}
-
-#[test]
-fn test_declare_activation() {
-    let expected_sigmoid: String = "`define sigmoid(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = 1 / (1 + exp(-xs[i]));\\\n\tend\n".to_owned();
-    let expected_tanh: String = "`define tanh(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = tanh(xs[i]);\\\n\tend\n".to_owned();
-    let expected_relu: String = "`define relu(xs, x_dim)\\\n\tfor (i = 0; i < x_dim; i = i + 1) begin\\\n\t\txs[i] = (xs[i] + abs(xs[i])) / 2;\\\n\tend\n".to_owned();
-
-    assert_eq!(declare_activation(Activations::Sigmoid), expected_sigmoid);
-    assert_eq!(declare_activation(Activations::Tanh), expected_tanh);
-    assert_eq!(declare_activation(Activations::ReLU), expected_relu);
 }
 
 #[test]

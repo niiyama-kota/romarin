@@ -4,7 +4,6 @@ fn test_pinn_embedding_sp_model() {
     use romarin::components::utils::Activations;
     use romarin::components::{edge::*, node::*};
     use romarin::loader;
-    use romarin::transistor_model::physics::surface_potential::SurfacePotentialModel;
     use std::io::Write;
     use std::{
         collections::HashMap,
@@ -243,13 +242,15 @@ fn test_pinn_embedding_sp_model() {
     let va_code = pinn.gen_verilog();
     // println!("{}", va_code);
 
-    let data_output_path = Path::new("./plot");
+    let data_output_path = Path::new("./sim");
     let _ = create_dir_all(&data_output_path);
     let mut w =
         BufWriter::new(File::create(data_output_path.join("auto_generated_model.va")).unwrap());
 
     let _ = writeln!(w, "{}", va_code);
 
+    let data_output_path = Path::new("./plot");
+    let _ = create_dir_all(&data_output_path);
     let mut w = BufWriter::new(
         File::create(data_output_path.join("embedding_sp_model_prediction.csv")).unwrap(),
     );

@@ -7,6 +7,7 @@ use rand_distr::Distribution;
 use rand_distr::Normal;
 use tch::Tensor;
 
+/* M. Shintani, Y. Nakamura, K. Oishi, M. Hiromoto, T. Hikihara and T. Sato, "Surface-Potential-Based Silicon Carbide Power MOSFET Model for Circuit Simulation," in IEEE Transactions on Power Electronics, vol. 33, no. 12, pp. 10774-10783, Dec. 2018, doi: 10.1109/TPEL.2018.2805808. */
 #[derive(Clone, Debug)]
 pub struct SurfacePotentialModel {
     scale: f64,  // スケーリングファクター(Idsの係数みたいなやつ)

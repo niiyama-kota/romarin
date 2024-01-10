@@ -20,3 +20,7 @@ rand_distr = "0.4.3"
 [[bin]]
 name = "run-simplenet"
 path = "bin/run_simplenet.rs"
+
+[[bin]]
+name = "transfer-learning"
+path = "bin/transfer_learning.rs"

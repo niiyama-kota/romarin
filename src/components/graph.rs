@@ -1,14 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 
 use crate::components::node::*;
 use crate::components::utils::{declare_matrix_mul, declare_matrix_mul_add};
-use anyhow::Result;
 use tch::Kind;
-use tch::{
-    nn::{self, Module, OptimizerConfig, VarStore},
-    Device, Tensor,
-};
+use tch::{nn::Module, Tensor};
 
 use super::edge::{Edge, Linear};
 
@@ -56,6 +51,18 @@ impl Graph {
     pub fn grad(&mut self, edge_index: &[usize], b: bool) {
         for i in edge_index {
             self.edge_list[*i].grad(b);
+        }
+    }
+
+    pub fn replace_node(&mut self, org: NodeType, n: NodeType) {
+        let edges = &mut self.edge_list;
+        for e in edges {
+            if e.from() == org {
+                e.reconnect(n, e.to());
+            }
+            if e.to() == org {
+                e.reconnect(e.from(), n);
+            }
         }
     }
 
@@ -316,7 +323,7 @@ fn test_hermite_prod() {
 fn test_add_edge() {
     use crate::components::node::AccFn;
     use crate::components::utils::Activations;
-    use tch::Kind;
+    use tch::{nn, Kind};
 
     let vs = nn::VarStore::new(tch::Device::Cpu);
     let mut g = Graph::new();

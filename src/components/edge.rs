@@ -37,6 +37,11 @@ impl Linear {
         };
         self.trans = nn::Linear { ws, bs }
     }
+
+    pub fn reconnect(&mut self, from: NodeType, to: NodeType) {
+        self.from = from;
+        self.to = to;
+    }
 }
 
 impl Module for Linear {

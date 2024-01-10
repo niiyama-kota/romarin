@@ -3,7 +3,7 @@ use tch::{nn::Module, Tensor};
 
 use super::utils::{array_init, Activations};
 
-pub trait Node: Module + Eq + PartialEq + Hash + Clone + Copy {
+pub trait Node: Module + PartialEq + Eq + Hash + Clone + Copy {
     fn size(&self) -> usize;
     fn export_init(&self, id: &str) -> String;
     fn export_forward(&self) -> String;
@@ -164,9 +164,11 @@ impl Module for InputNode {
     fn forward(&self, xs: &Tensor) -> Tensor {
         match self.act {
             Activations::Id => xs.copy(),
+            Activations::Scale(factor) => xs / factor as f64,
             Activations::Sigmoid => xs.sigmoid(),
             Activations::Tanh => xs.tanh(),
             Activations::ReLU => xs.relu(),
+            Activations::LeakyReLU => xs.leaky_relu(),
         }
     }
 }
@@ -233,9 +235,11 @@ impl Module for HiddenNode {
     fn forward(&self, xs: &Tensor) -> Tensor {
         match self.act {
             Activations::Id => xs.copy(),
+            Activations::Scale(factor) => xs / factor as f64,
             Activations::Sigmoid => xs.sigmoid(),
             Activations::Tanh => xs.tanh(),
             Activations::ReLU => xs.relu(),
+            Activations::LeakyReLU => xs.leaky_relu(),
         }
     }
 }
@@ -326,9 +330,11 @@ impl Module for OutputNode {
     fn forward(&self, xs: &Tensor) -> Tensor {
         match self.act {
             Activations::Id => xs.copy(),
+            Activations::Scale(factor) => xs / factor as f64,
             Activations::Sigmoid => xs.sigmoid(),
             Activations::Tanh => xs.tanh(),
             Activations::ReLU => xs.relu(),
+            Activations::LeakyReLU => xs.leaky_relu(),
         }
     }
 }
