@@ -152,7 +152,7 @@ fn test_pinn_embedding_sp_model_to_simple_nn() {
     let lr = 1e-2;
     let epoch = 5000;
     let mut opt = nn::AdamW::default().build(&vs, lr).unwrap();
-    
+
     for _epoch in 1..=epoch {
         println!("epoch {}", _epoch);
         opt.zero_grad();

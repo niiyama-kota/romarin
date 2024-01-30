@@ -24,3 +24,19 @@ path = "bin/run_simplenet.rs"
 [[bin]]
 name = "transfer-learning"
 path = "bin/transfer_learning.rs"
+
+[[bin]]
+name = "struct-restrict-model"
+path = "bin/struct_restriction.rs"
+
+[[bin]]
+name = "data-augmentation"
+path = "bin/data_augmentation.rs"
+
+[[bin]]
+name = "icmts"
+path = "bin/icmts.rs"
+
+[[bin]]
+name = "sa"
+path = "bin/simulated_anealing.rs"

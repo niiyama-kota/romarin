@@ -2,4 +2,11 @@
 /.vscode
 .bashrc
 data/
+_data/
 plots/
+*.py
+Meas/
+Model/
+bin/
+plot/
+sim/

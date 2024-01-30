@@ -114,6 +114,58 @@ pub fn min_max_scaling(measurements: &IV_measurements) -> ScaledMeasurements {
     }
 }
 
+// (vgs,vds,ids)の順
+pub fn scaling(
+    measurements: &IV_measurements,
+    max: (f32, f32, f32),
+    min: (f32, f32, f32),
+) -> ScaledMeasurements {
+    let mut minimums = HashMap::<String, f32>::new();
+    let mut maximums = HashMap::<String, f32>::new();
+    minimums.insert("IDS".to_owned(), min.2);
+    maximums.insert("IDS".to_owned(), max.2);
+    minimums.insert("VDS".to_owned(), min.1);
+    maximums.insert("VDS".to_owned(), max.1);
+    minimums.insert("VGS".to_owned(), min.0);
+    maximums.insert("VGS".to_owned(), max.0);
+
+    let scaled_ids = measurements
+        .ids
+        .iter()
+        .map(|x| {
+            (*x - minimums.get("IDS").unwrap_or(&0.))
+                / (maximums.get("IDS").unwrap_or(&1.) - minimums.get("IDS").unwrap_or(&0.))
+        })
+        .collect();
+    let scaled_vds = measurements
+        .vds
+        .iter()
+        .map(|x| {
+            (*x - minimums.get("VDS").unwrap_or(&0.))
+                / (maximums.get("VDS").unwrap_or(&1.) - minimums.get("VDS").unwrap_or(&0.))
+        })
+        .collect();
+    let scaled_vgs = measurements
+        .vgs
+        .iter()
+        .map(|x| {
+            (*x - minimums.get("VGS").unwrap_or(&0.))
+                / (maximums.get("VGS").unwrap_or(&1.) - minimums.get("VGS").unwrap_or(&0.))
+        })
+        .collect();
+
+    let mut measurements = HashMap::<String, Vec<f32>>::new();
+    measurements.insert("VGS".to_owned(), scaled_vgs);
+    measurements.insert("VDS".to_owned(), scaled_vds);
+    measurements.insert("IDS".to_owned(), scaled_ids);
+
+    ScaledMeasurements {
+        minimums: minimums,
+        maximums: maximums,
+        measurements: measurements,
+    }
+}
+
 pub fn read_csv(file_path: String) -> Result<IV_measurements, Box<dyn Error>> {
     let mut vgs = Vec::<f32>::new();
     let mut ids = Vec::<f32>::new();
